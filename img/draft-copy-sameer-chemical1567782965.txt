@@ -1,0 +1,213 @@
+{1:F01ALFHPKKAAXXX.SN...ISN.}{2:I700ISBKTRISXXXXN}{3:{108:xxxxx}}{4:
+
+:27/Sequence of Total                    : 1/1
+
+:40A/FORM OF DOCUMENTARY CREDIT          : IRREVOCABLE
+
+:20/TRANSACTION REFERENCE NUMBER         : SAMEER CHEMICAL COMPANY USD 9,672.00
+
+:31C/Date of Issue                       : 190905
+
+:40E/APPLICABLE RULES                    : UCP LATEST VERSION
+
+:31D/DATE AND PLACE OF EXPIRY            : 191021TURKEY
+
+:51A/APPLICANT BANK                      : ALFHPKKACID
+
+:50/Applicant                            : SAMEER CHEMICAL COMPANY
+
+                                           A.ABDULREHMAN STREET JODIA BAZAR
+
+                                           KARACHI 7400, PAKISTAN
+
+:59/Beneficiary                          : ERC KIMYA AND MAKINA SAN, VE TIC
+
+                                           LTD, STL. KILIC TASKOPRU YOLU 1, KM
+
+                                           CIFTLIKKOY
+
+:32B/CURRENCY CODE, AMOUNT               : USD9672,00
+
+:41D/AVAILABLE WITH ... BY ...           : ANY BANK IN TURKEY
+
+                                           BY NEGOTIATION
+
+:42C/DRAFTS AT ...                       : SIGHT
+
+:42A/DRAWEE                              : ALFHPKKACID
+
+:43P/PARTIAL SHIPMENT                    : NOT ALLOWED
+
+:43T/Transhipment                        : ALLOWED
+
+:44E/PORT OF LOADING / AIRPORT OF        : GEMLIK PORT, TURKEY
+
+:44F/PORT OF DISCHARGE/AIRPORT           : KARACHI PORT, PAKISTAN
+
+:44C/LATEST DATE OF SHIPMENT             : 190930
+
+:45A/DESCRIPTION OF GOODS AND/OR SERVICE : QTY: 24.00 MTS, SODIUM METABISULFITE FOOD GRADE, AT THE RATE OF
+
+                                           USD: 403.00 PER MT
+
+                                           .
+
+                                           ALL DETAILS ARE AS PER BENEFICIARY'S PROFORMA INVOICE NO:
+
+                                           PROINV1443, DATED: 03-09-2019
+
+                                           .
+
+                                           (H.S. CODE: 2832.1090)
+
+                                           .
+
+                                           TOTAL VALUE OF MERCHANDISE USD: 9,672./-
+
+                                           C F R KARACHI PORT, PAKISTAN (INCOTERMS 2010).
+
+:46A/DOCUMENTS REQUIRED                  : 1- BENEFICIARY'S MANUALLY SIGNED COMMERCIAL INVOICES IN (08)
+
+                                           EIGHT COPIES, CERTIFYING DESCRIPTION OF GOODS AND H.S. CODE AS
+
+                                           PER FIELD 45A ALSO CERTIFYING GOODS TO BE OF TURKEY ORIGIN.
+
+                                           2- FULL SET OF ORIGINAL CLEAN 'SHIPPED ON BOARD' MARINE BILLS OF
+
+                                           LADING MADE OUT OR ENDORSED TO ORDER OF BANK ALFALAH LIMITED,
+
+                                           CENTRALIZED IMPORTS, KARACHI PAKISTAN, MARKED FREIGHT PREPAID
+
+                                           AND MARKED NOTIFY APPLICANT AND BANK ALFALAH LIMITED,
+
+                                           CENTRALIZED IMPORTS, KARACHI PAKISTAN. BILL OF LADING MUST
+
+                                           SHOW NAME, ADDRESS, TELEPHONE AND FAX NUMBER OF LOCAL SHIPPING
+
+                                           AGENT IN PAKISTAN.
+
+                                           3- PACKING LIST IN TWO COPIES.
+
+                                           4-  INSURANCE IS ARRANGED IN PAKISTAN, INDICATING FULL DETAILS OF
+
+                                           ALL SHIPMENT UNDER THIS CREDIT MUST BE ADVISED BY BENEFICIARY
+
+                                           WITHIN TEN WORKING DAYS AFTER SHIPMENT DIRECT TO APPLICANT AND
+
+                                           TO M/S EFU GENERAL INSUANCE LIMITED, EFU HOUSE, M.A.JINNAH ROAD,
+
+                                           P.O.BOX-5005, KARACHI, PAKISTAN ON THEIR EMAIL AT:
+
+                                           MARINE(AT)EFUINSURANCE.COM OR INFO(AT)EFUINSURANCE.COM
+
+                                           REFERRING TO THEIR MARINE COVER NOTE NO: 2511071088/09/2019,
+
+                                           DATED: 03-09-2019 COPY OF THESE ADVICES MUST ACCOMPANY EACH
+
+                                           SET OF THE DOCUMENTS.
+
+                                           5- A COPY OF INVOICE AND PACKING LIST TO BE FIXED INSIDE THE
+
+                                           DOOR OF THE CONTAINER. BENEFICIARY CERTIFICATE TO THIS EFFECT
+
+                                           MUST ACCOMPANY THE ORIGINAL DOCUMENTS.
+
+                                           6- SHIPPING COMPANY OR THEIR AUTHORISED AGENT'S CERTIFICATE
+
+                                           REQUIRED CERTIFYING THAT THE CARRYING VESSEL IS SEAWORTHY.
+
+                                           7- BENEFICIARY CERTIFICATE REQUIRED CERTIFYING THAT COMPLETE
+
+                                           DESCRIPTION OF GOODS IS MENTIONED ON INVOICES THAT ARE CALLED BY
+
+                                           THE L/C EXACTLY AS MENTIONED IN THE PROFORMA INVOICE / SALES
+
+                                           CONTRACT NO. MENTIONED IN FIELD 45A DULY ACCEPTED BY THE
+
+                                           APPLICANT AND BENEFICIARY.
+
+                                           8- CERTIFICATE OF ANALYSIS REQUIRED.
+
+:47A/ADDITIONAL CONDITIONS               : 1- ALL DOCUMENTS MUST QUOTE THIS L/C NO. DATE OF ISSUE AND NAME
+
+                                           OF ISSUING BANK.
+
+                                           2- DOCUMENTS DATED PRIOR TO DATE OF THIS CREDIT ARE NOT
+
+                                           ACCEPTABLE.
+
+                                           3- THIRD PARTY, CHARTER PARTY, SHORT FORM, BLANK BACK, FREIGHT
+
+                                           FORWARDER'S, HOUSE AND NON-NEGOTIABLE SEAWAY B/L NOT ACCEPTABLE.
+
+                                           THIRD PARTY DOCUMENTS ARE NOT ACCEPTABLE. THIRD PARTY SHIPPERS
+
+                                           ARE NOT ACCEPTABLE.
+
+                                           4- IF DOCUMENTS PRESENTED DO NOT COMPLY WITH THE TERMS OF THIS
+
+                                           CREDIT, DISCREPANCY FEE OF USD: 75.00/- OR EQV WILL BE DEDUCTED
+
+                                           FROM THE PROCEEDS.
+
+                                           5- BANK ALFALAH LIMITED (BAFL) MAY NOT BE ABLE TO CONTINUE WITH
+
+                                           THIS TRANSACTION IN CASE ANY OF ENTITY, COUNTRY, REGION, VESSEL
+
+                                           AND OR INDIVIDUAL RELATED TO THIS TRANSACTION INVOLVES BY ANY
+
+                                           MEANS IN SPECIFIC SANCTIONS IMPOSED BY UNITED NATION, THE UNITED
+
+                                           STATES, THE EUROPEAN UNION, THE UNITED KINGDOM OR ANY OTHER
+
+                                           REGULATORY AUTHORITY. BAFL IS NOT ANY WAY LIABLE FOR THE DELAY,
+
+                                           REFUSAL, NON-EXECUTION OF THE TRANSACTION IN THE EVENT OF
+
+                                           POTENTIAL BREACH OF SUCH SANCTIONS.
+
+                                           6- FOURTEEN DAYS FREE CONTAINER DETENTION TIME ALLOWED AT THE
+
+                                           PORT OF DISCHARGE AND IT SHOULD PREFERABLY BE MENTIONED ON THE
+
+                                           BILL OF LADING OR A SEPARATE CERTIFICATE ISSUED BY THE SHIPPING
+
+                                           COMPANY OR ITS AGENTS ALLOWING THE SAME.
+
+                                           7- DOCUMENTS MUST BE PRESENTED WITHIN 21 DAYS FROM THE SHIPMENT
+
+                                           DATE OF TRANSPORT DOC., BUT NOT LATER THAN EXPIRY DATE OF THIS
+
+                                           CREDIT.
+
+                                           8- SHIPMENT/TRANSSHIPMENT ON ISRAELI FLAG VESSEL NOT ALLOWED.
+
+:71D/Account(s) for Charges              : ALL BANK CHARGES OUTSIDE PAKISTAN
+
+                                           ARE ON BENEFICIARY'S ACCOUNT.
+
+:48/PERIOD FOR PRESENTATION              : 21/DAYS (AS PER CLAUSE 7 OF FIELD 47A)
+
+:49/CONFIRMATION INSTRUCTION             : WITHOUT
+
+:78/INSTRUCTIONS TO THE PAY/APT/NEG BNK  : 1- ALL DOCUMENTS TO BE FORWARDED IN ONE SET BY COURIER TO BANK
+
+                                           ALFALAH LIMITED CENTRALIZED IMPORTS DEPARTMENT 10TH FLOOR, FAKHRI
+
+                                           TRADE CENTRE, SR-6/10, SHAHRAH-E-LIAQUAT (FRERE ROAD) KARACHI -
+
+                                           74200 PAKISTAN.
+
+                                           2- AMOUNT OF EACH DRAWING MUST BE ENDORSED ON THIS L/C.
+
+                                           3- REIMBURSING INSTRUCTIONS: WE SHALL ARRANGE REMITTANCE OF THE
+
+                                           PROCEEDS ON RECEIPT OF DOCUMENTS STRICTLY COMPLYING WITH THE
+
+                                           CREDIT TERMS.
+
+:72Z/Sender to Receiver Information      : THIS IS AN OPERATIVE INSTRUMENT AND
+
+                                           NO MAIL CONFIRMATION IS REQUIRED.
+
+                                           -}

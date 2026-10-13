@@ -1,0 +1,44 @@
+/* Add here all your CSS customizations */
+.bgRed td{background:#FFACAC;}
+.taskLstTab tr td{padding:15px 4px !important}
+.settlementBg{background:#90EE90}
+.reptBtn{padding:1px 6px;font-size:11px;border-radius:4px;}
+.hintTxt{font-size:12px;}
+.editBtn,.viewBtn,.delBtn,.notsBtn,.pdfBtn,.downBtn{font-size:13px;padding:5px 10px;border-radius:10px;color:#000;font-weight:600}
+.editBtn{background-color: #a5eb95;border:#a5eb95 solid 1px;}
+.editBtn:hover{background-color: #a5eb95;border:#a5eb95 solid 1px;}
+.viewBtn{background-color: #fee79b;border:#fee79b solid 1px;}
+.viewBtn:hover{background-color: #fee79b;border:#fee79b solid 1px;}
+.delBtn{background-color: #fb5854;border:#fb5854 solid 1px;}
+.delBtn:hover{background-color: #fb5854;border:#fb5854 solid 1px;}
+.notsBtn{background-color: #8895ff;border:#8895ff solid 1px;}
+.notsBtn:hover{background-color: #8895ff;border:#8895ff solid 1px;}
+.pdfBtn{background-color: #074676;border:#074676 solid 1px;}
+.pdfBtn:hover{background-color: #074676;border:#074676 solid 1px;}
+.downBtn{background-color: #ef7f1b;border:#ef7f1b solid 1px;}
+.downBtn:hover{background-color: #ef7f1b;border:#ef7f1b solid 1px;}
+.table-action-buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;min-width:145px}
+.table-action-buttons .btn{display:inline-flex;align-items:center;justify-content:center;min-height:32px;margin:0;padding:6px 11px;border-radius:6px;font-size:12px;font-weight:600;line-height:1.2;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease}
+.table-action-buttons .viewBtn{background:#fff4cc!important;border:1px solid #ecd88e!important;color:#684f00!important}
+.table-action-buttons .viewBtn:hover{background:#ffe89b!important;border-color:#dec76f!important}
+.table-action-buttons .editBtn{background:#e7f6e4!important;border:1px solid #b9dfb2!important;color:#286526!important}
+.table-action-buttons .editBtn:hover{background:#d4edcf!important;border-color:#9bcf91!important}
+.table-action-buttons .notsBtn{background:#eeefff!important;border:1px solid #c9ccfa!important;color:#454ba8!important}
+.table-action-buttons .notsBtn:hover{background:#dfe1ff!important;border-color:#aeb3f2!important}
+.table-action-buttons .delBtn{background:#fff0ef!important;border:1px solid #efc0bd!important;color:#a52d28!important}
+.table-action-buttons .delBtn:hover{background:#ffe0de!important;border-color:#e6a09b!important}
+.table-action-buttons .addTaskBtn{background:#e8f3ff!important;border:1px solid #b8d5f4!important;color:#245b8e!important}
+.table-action-buttons .addTaskBtn:hover{background:#d4e9ff!important;border-color:#93bee9!important}
+.noPadding{padding:0 4px !important}
+.statusBg{font-size:13px;padding:5px 10px;border-radius:10px;color:#000;font-weight:600;}
+.redTxt{color:#fff;font-weight:bold;background:#fb5854;padding:2px 10px;border-radius:10px;font-size:10px;}
+.redTxt:hover{color:#fff;}
+.grnTxt{color:#fff;font-weight:bold;background:#47a447;padding:2px 10px;border-radius:10px;font-size:10px;}
+.grnTxt:hover{color:#fff;}
+.alert-danger p{margin:0;}
+.smlTxt{font-size:10px;padding:8px;margin:5px 0 0 0;}
+.smlTxt button.close{font-size:12px;}
+.quickNotePop{margin-left:13px;}
+#quickNoteForm .panel-heading{border-bottom:4px solid #DADADA }
+#quickNoteForm .panel-actions a{color:#000;}
+.datepicker{z-index:999999 !important;}

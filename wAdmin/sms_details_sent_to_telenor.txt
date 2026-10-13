@@ -1,0 +1,23 @@
+Time: 14-03-23 03:36:00    Client: 923008207530     Data: Error 102     Response: Error
+Time: 14-03-23 08:38:01    Client: 923008207530     Data: Error 102     Response: Error
+Time: 14-03-23 08:39:20    Client: 923212155777     Data: 4835484385     Response: OK
+Time: 14-03-23 08:39:22    Client: 923008207530     Data: 4835484407     Response: OK
+Time: 15-03-23 06:33:55    Client: 923212155777     Data: 4837093756     Response: OK
+Time: 15-03-23 06:33:57    Client: 923008207530     Data: 4837093783     Response: OK
+Time: 16-03-23 12:55:04    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 12:56:29    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:08:04    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:09:39    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:14:43    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:14:57    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:15:28    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:18:52    Client: 923002022866     Data: Error 102     Response: Error
+Time: 16-03-23 01:18:54    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:24:22    Client: 923212155777     Data: Error 102     Response: Error
+Time: 16-03-23 01:24:24    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:25:34    Client: 923212155777     Data: Error 102     Response: Error
+Time: 16-03-23 01:25:36    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:26:57    Client: 923212155777     Data: Error 102     Response: Error
+Time: 16-03-23 01:27:00    Client: 923008207530     Data: Error 102     Response: Error
+Time: 16-03-23 01:28:39    Client: 923212155777     Data: Error 102     Response: Error
+Time: 16-03-23 01:28:42    Client: 923008207530     Data: Error 102     Response: Error

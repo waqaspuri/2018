@@ -1,0 +1,23 @@
+{
+    "name": "my-project/my-app",
+    "type": "library",
+    "description": "DOMPDF is a CSS 2.1 compliant HTML to PDF converter",
+    "homepage": "https://github.com/dompdf/dompdf",
+    "license": "LGPL",
+    "authors": [
+        {
+            "name": "Fabien Ménager",
+            "email": "fabien.menager@gmail.com"
+        },
+        {
+            "name": "Brian Sweeney",
+            "email": "eclecticgeek@gmail.com"
+        }
+    ],
+    "autoload": {
+    },
+    "require": {
+        "dompdf/dompdf": "^3.1.3",
+        "phenx/php-font-lib": "0.2.*"
+    }
+}

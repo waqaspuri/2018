@@ -1,6 +1,7 @@
 <?php
 include "include/sessionAdmin.php";  
 require 'phpmailer/PHPMailerAutoload.php';
+require_once(__DIR__ . '/../php/mail_config.php');
 include "include/configure.php";
 if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="add"){
@@ -68,11 +69,11 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 							$message = preg_replace('/[^(\x20-\x7F)\x0A\x0D]*/','', $message);
 							$mail = new PHPMailer;
 
-							$mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+							configureAppMailer($mail);
 							$mail->AddAddress($to,$rowsCtBk['applicantName']);
 							$mail->AddCC($to2,$rowsCtBk['applicantName']);
 							$mail->IsHTML(true);  
-							$mail->AddBCC('waqaspuri@gmail.com', 'Waqas Saeed Puri');
+							addConfiguredMailBcc($mail);
 
 							$mail->Subject  = $subject;
 							$mail->Body     = $message;

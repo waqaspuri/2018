@@ -127,10 +127,11 @@ To do List
 <li><a href="<?=$siteUrl?>posSettings.php">Manage POS Settings</a> </li>
 </ul>
 </li>
-<li class="nav-parent <?=($basePth=="emailTemplates.php" || $basePth=="smsTemplates.php")?'nav-active nav-expanded':'';?>" > <a> <i class="fa fa-list" aria-hidden="true"></i> <span>Manage Templates</span> </a>
+<li class="nav-parent <?=($basePth=="emailTemplates.php" || $basePth=="smsTemplates.php" || $basePth=="whatsapp_templates.php")?'nav-active nav-expanded':'';?>" > <a> <i class="fa fa-list" aria-hidden="true"></i> <span>Manage Templates</span> </a>
 <ul class="nav nav-children">
 <li><a href="<?=$siteUrl?>emailTemplates.php">Manage Email Templates</a> </li>
 <li><a href="<?=$siteUrl?>smsTemplates.php">Manage SMS Templates</a> </li>
+<li><a href="<?=$siteUrl?>whatsapp_templates.php">Manage WhatsApp Templates</a> </li>
 </ul>
 </li>
 <li class="<?=($basePth=="settings.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>settings.php"><i class="fa fa-wrench" aria-hidden="true"></i> <span>Manage Settings</span> </a> </li>

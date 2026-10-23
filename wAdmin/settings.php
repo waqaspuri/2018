@@ -21,11 +21,26 @@ if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="update"){
 $requireAdminOtp = isset($_POST['disableAdminOtp']) && $_POST['disableAdminOtp'] === '1' ? 0 : 1;
 mysqli_query($conn,"UPDATE admin SET address='". mysqli_real_escape_string($conn,$_POST['address'])."',mobileNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',siteUrl='". mysqli_real_escape_string($conn,$_POST['siteUrl'])."',adminEmail='". mysqli_real_escape_string($conn,$_POST['adminEmail'])."',shipmentTrackingApiKey='". mysqli_real_escape_string($conn,$_POST['shipmentTrackingApiKey'] ?? '')."',emailFooter='". mysqli_real_escape_string($conn,$_POST['emailFooter'] ?? '')."',requireAdminOtp='".$requireAdminOtp."' where id='1'");	
+if (isset($_POST['statusColors']) && is_array($_POST['statusColors'])) {
+    foreach ($_POST['statusColors'] as $statusID => $statusColor) {
+        if (!ctype_digit((string)$statusID) || !is_scalar($statusColor)) {
+            continue;
+        }
+        $statusID = (int)$statusID;
+        $statusColor = trim((string)$statusColor);
+        if (!preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusColor)) {
+            continue;
+        }
+        $safeStatusColor = mysqli_real_escape_string($conn, $statusColor);
+        mysqli_query($conn, "UPDATE status SET bgColor='" . $safeStatusColor . "' WHERE id='" . $statusID . "'");
+    }
+}
 header("location: settings.php?act=2");
 }
 }
 $sqlEdit = mysqli_query($conn,"SELECT * FROM admin WHERE id='1'");
 $rowsEdit = mysqli_fetch_assoc($sqlEdit);
+$sqlStatuses = mysqli_query($conn, "SELECT id,status,bgColor FROM status ORDER BY id ASC");
 $action = "update";
 include "include/header.php"; 
 ?>
@@ -97,6 +112,22 @@ echo '<div class="alert alert-info"><button type="button" class="close" data-dis
 <div class="col-md-6">
 <label><input type="checkbox" id="disableAdminOtp" name="disableAdminOtp" value="1" <?=((int)($rowsEdit['requireAdminOtp'] ?? 1) === 0) ? 'checked' : ''?>> Disable email OTP for admin sign-in</label>
 <p class="help-block">When checked, admin sign-in uses the password only and skips the email verification code.</p>
+</div>
+</div>
+<div class="form-group">
+<label class="col-md-3 control-label">Order Status Colors</label>
+<div class="col-md-6">
+<p class="help-block">Enter a hex color (for example, #4caf50) or a CSS color name (for example, green).</p>
+<?php while ($statusRow = mysqli_fetch_assoc($sqlStatuses)) {
+    $statusID = (int)$statusRow['id'];
+    $statusName = htmlspecialchars((string)$statusRow['status'], ENT_QUOTES, 'UTF-8');
+    $statusColor = htmlspecialchars((string)($statusRow['bgColor'] ?? ''), ENT_QUOTES, 'UTF-8');
+?>
+<div class="row" style="margin-bottom:8px">
+<div class="col-sm-6"><label class="control-label" for="statusColor<?=$statusID?>"><?=$statusName?></label></div>
+<div class="col-sm-6"><input type="text" class="form-control" id="statusColor<?=$statusID?>" name="statusColors[<?=$statusID?>]" value="<?=$statusColor?>" placeholder="#4caf50" pattern="(#[0-9a-fA-F]{3,4}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|[a-zA-Z]{1,20})" title="Use a 3, 4, 6, or 8 digit hex color, or a CSS color name"></div>
+</div>
+<?php } ?>
 </div>
 </div>
 <label class="col-md-3 control-label" for="inputDisabled">&nbsp;</label>

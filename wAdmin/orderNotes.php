@@ -19,9 +19,9 @@ $noteTitle = mysqli_real_escape_string($conn, (string)($_POST['orderTitle'] ?? '
 $noteBody = mysqli_real_escape_string($conn, (string)($_POST['orderNote'] ?? ''));
 if(isset($_POST['action']) && $_POST['action']=="add"){
 mysqli_query($conn,"INSERT INTO order_notes (orderID,statusID,orderTitle,orderNote,createdDate) VALUES ('" . $noteOrderID . "','" . $noteStatusID . "','" . $noteTitle . "','" . $noteBody . "','" . currDateTimeGmt() . "')");
-header("location: orderNotes.php?act=1&oID=" . $noteOrderID);
+header("Location: orders.php?action=view&id=" . $noteOrderID . "&noteAdded=1");
 }else if(isset($_POST['action']) && $_POST['action']=="update"){
-mysqli_query($conn,"UPDATE order_notes SET orderID='" . $noteOrderID . "',statusID='" . $noteStatusID . "',orderNote='" . $noteBody . "',orderTitle='" . $noteTitle . "' WHERE id='" . (int)($_POST['id'] ?? 0) . "'");
+mysqli_query($conn,"UPDATE order_notes SET orderID='" . $noteOrderID . "',statusID='" . $noteStatusID . "',orderNote='" . $noteBody . "',orderTitle='" . $noteTitle . "',modifiedDate='" . currDateTimeGmt() . "' WHERE id='" . (int)($_POST['id'] ?? 0) . "'");
 header("location: orderNotes.php?act=2&oID=" . $noteOrderID);
 }
 }

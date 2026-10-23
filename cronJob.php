@@ -8,6 +8,8 @@ require_once(__DIR__ . '/php/task_reminder_tracking.php');
 require_once(__DIR__ . '/PHPMailer/Exception.php');
 require_once(__DIR__ . '/PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/PHPMailer/SMTP.php');
+require_once(__DIR__ . '/php/mail_config.php');
+require_once(__DIR__ . '/php/whatsapp_tasks.php');
 
 mysqli_query($conn, "CREATE TABLE IF NOT EXISTS task_attachments (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -36,6 +38,11 @@ $sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,tas
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
+		$enabledChannels = array_map('trim', explode(',', (string)$rowsEp['sendBy']));
+		if (!array_intersect(array('mail', 'sms', 'whatsapp'), $enabledChannels)) {
+			error_log('Task reminder skipped: no delivery channel enabled for task ' . (int)$rowsEp['id']);
+			continue;
+		}
 		if ($rowsEp['assignTo'] != "") {
 			//Order Info
 			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
@@ -128,8 +135,8 @@ if ($numRowsExp > 0) {
 							$mail = new PHPMailer();
 							$mail->CharSet = 'UTF-8';
 							$mail->Encoding = 'base64';
-							$mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
-							$mail->addBCC('waqaspuri@gmail.com', 'Waqas Chemicals');
+							configureAppMailer($mail);
+							addConfiguredMailBcc($mail);
 							$mail->addAddress($to, $rowsCtBk['applicantName']);
 							if (!empty($to2)) {
 								$mail->addCC($to2, $rowsCtBk['applicantName']);
@@ -238,6 +245,11 @@ if ($numRowsExp > 0) {
 		}
 
 
+		if (in_array('whatsapp', explode(',', (string)$rowsEp['sendBy']), true)) {
+			$whatsAppResult = sendTaskWhatsApp($conn, (int)$rowsEp['id']);
+			if (!$whatsAppResult[0]) error_log('Task WhatsApp reminder failed: ' . $whatsAppResult[1]);
+			else $notificationSent = true;
+		}
 		$nextExpired = ($rowsEp['isSecondReminder'] == "1") ? '0' : '1';
 		mysqli_query($conn, "UPDATE tasks SET firstReminderSentAt=NOW(), isExpired='" . $nextExpired . "' WHERE id='" . (int)$rowsEp['id'] . "' AND firstReminderSentAt IS NULL");
 
@@ -249,6 +261,11 @@ if ($numRowsExp > 0) {
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
+		$enabledChannels = array_map('trim', explode(',', (string)$rowsEp['sendBy']));
+		if (!array_intersect(array('mail', 'sms', 'whatsapp'), $enabledChannels)) {
+			error_log('Task repeat reminder skipped: no delivery channel enabled for task ' . (int)$rowsEp['id']);
+			continue;
+		}
 		if ($rowsEp['assignTo'] != "") {
 			//Order Info
 			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
@@ -361,12 +378,12 @@ if ($numRowsExp > 0) {
 								$mail = new PHPMailer();
 							$mail->CharSet = 'UTF-8';
 							$mail->Encoding = 'base64';
-							$mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+							configureAppMailer($mail);
 							$mail->addAddress($to, $rowsCtBk['applicantName']);
 							if (!empty($to2)) {
 								$mail->addCC($to2, $rowsCtBk['applicantName']);
 							}
-							$mail->addBCC('waqaspuri@gmail.com', 'Waqas Chemicals');
+							addConfiguredMailBcc($mail);
 							$mail->isHTML(true);
 							$mail->Subject = $subject;
 							$mail->Body = $message;
@@ -478,6 +495,11 @@ if ($numRowsExp > 0) {
 		}
 
 
+		if (in_array('whatsapp', explode(',', (string)$rowsEp['sendBy']), true)) {
+			$whatsAppResult = sendTaskWhatsApp($conn, (int)$rowsEp['id']);
+			if (!$whatsAppResult[0]) error_log('Task WhatsApp repeat reminder failed: ' . $whatsAppResult[1]);
+			else $notificationSent = true;
+		}
 		mysqli_query($conn, "UPDATE tasks SET secondReminderSentAt=NOW(), isExpired='0' WHERE id='" . (int)$rowsEp['id'] . "' AND secondReminderSentAt IS NULL");
 
 

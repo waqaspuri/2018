@@ -3,6 +3,14 @@ require_once "include/sessionAdmin.php";
 require_once "include/configure.php";
 require_once "../php/lead_pipeline.php";
 ensureLeadPipelineSchema($conn);
+$modifiedDateColumn = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'modifiedDate'");
+if ($modifiedDateColumn && mysqli_num_rows($modifiedDateColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE orders ADD COLUMN modifiedDate DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP AFTER createdDate");
+}
+$noteModifiedDateColumn = mysqli_query($conn, "SHOW COLUMNS FROM order_notes LIKE 'modifiedDate'");
+if ($noteModifiedDateColumn && mysqli_num_rows($noteModifiedDateColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE order_notes ADD COLUMN modifiedDate DATETIME NULL DEFAULT NULL AFTER createdDate");
+}
 
 $sqlLeadTimeColumn = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'lead_time'");
 if (mysqli_num_rows($sqlLeadTimeColumn) == 0) {
@@ -32,7 +40,8 @@ if (isset($_GET['action'], $_GET['id']) && $_GET['action'] === 'view') {
         $uuidResult = mysqli_query($conn, "SELECT orderUUID FROM orders WHERE id='" . (int)$requestedId . "' LIMIT 1");
         $uuidRow = $uuidResult ? mysqli_fetch_assoc($uuidResult) : false;
         if ($uuidRow && !empty($uuidRow['orderUUID'])) {
-            header("Location: orders.php?action=view&id=" . rawurlencode($uuidRow['orderUUID']));
+            $noteAddedQuery = isset($_GET['noteAdded']) && $_GET['noteAdded'] === '1' ? '&noteAdded=1' : '';
+            header("Location: orders.php?action=view&id=" . rawurlencode($uuidRow['orderUUID']) . $noteAddedQuery);
             exit;
         }
     } else {
@@ -400,6 +409,9 @@ if(isset($_GET['action']) && $_GET['action'] == "view"){
 @media (max-width: 767px) { .order-note-capsule { align-items: flex-start; border-radius: 12px; } }
 </style>
 <section class="order-note-capsules" aria-label="Order notes">
+<?php if (isset($_GET['noteAdded']) && $_GET['noteAdded'] === '1'): ?>
+<div class="alert alert-info" role="status"><strong>Note has been added successfully</strong></div>
+<?php endif; ?>
 <div class="order-note-capsule-list">
 <?php if ($orderNotes): foreach ($orderNotes as $orderNote): ?>
     <a class="order-note-capsule" href="orderNotes.php?action=edit&amp;id=<?=rawurlencode((string)$orderNote['id']);?>&amp;oID=<?=rawurlencode((string)$id);?>" title="Edit this note">
@@ -1521,7 +1533,18 @@ if(isset($_GET['q']) && $_GET['q']!=""){
         OR c.applicantName LIKE '%" . $searchTerm . "%'
         OR p.prodName LIKE '%" . $searchTerm . "%') ";
 }
-$sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,c.applicantName,v.applicantName as vdr,o.dta,o.eta,o.newETA,o.id,o.invoiceNo,p.prodName,o.createdDate,o.statusID FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID AND o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')." ".$sqlSrch." ORDER BY o.id DESC limit $eu, $limit";
+$sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,c.applicantName,v.applicantName as vdr,o.dta,o.eta,o.newETA,o.id,o.invoiceNo,p.prodName,o.createdDate,o.modifiedDate,o.statusID,
+    GREATEST(
+        COALESCE(o.modifiedDate,o.createdDate),
+        COALESCE(notes.lastNoteActivity,o.createdDate),
+        o.createdDate,
+        CASE WHEN JSON_VALID(o.tags) AND JSON_TYPE(o.tags)='ARRAY' AND JSON_LENGTH(o.tags)>0 THEN
+            STR_TO_DATE(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_EXTRACT(o.tags, CONCAT('$[',JSON_LENGTH(o.tags)-1,']'))),' Status Change to',1),'%e-%b-%y %l:%i %p')
+        ELSE NULL END
+    ) AS lastActivity
+    FROM orders AS o JOIN products AS p ON p.id=o.productID JOIN customers AS c ON c.id=o.customerID JOIN customers AS v ON v.id=o.vendorID
+    LEFT JOIN (SELECT orderID,MAX(COALESCE(modifiedDate,createdDate)) AS lastNoteActivity FROM order_notes GROUP BY orderID) AS notes ON notes.orderID=o.id
+    WHERE o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')." ".$sqlSrch." ORDER BY lastActivity DESC,o.createdDate DESC,o.id DESC limit $eu, $limit";
 $sqltot = "SELECT o.id FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID AND o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')."  ". $sqlSrch." ORDER BY o.id DESC";
 $sqlMergedInvoices = mysqli_query($conn, "SELECT invoiceNo, COUNT(*) AS total_count FROM orders WHERE invoiceNo <> '' GROUP BY invoiceNo HAVING COUNT(*) > 1");
 $mergedInvoiceMap = array();
@@ -1558,8 +1581,12 @@ if($rows['expiryDate']==''){ $msgTxt.='<p>- Expiry Date</p>';}
 if($rows['latestDateShipment']==''){ $msgTxt.='<p>- Latest Date Shipment</p>';}
 if($rows['billNo']==''){ $msgTxt.='<p>- Bill Number</p>';}
 if($rows['documentOrderNo']==''){ $msgTxt.='<p>- Document Order No</p>';}
-echo '<style type="text/css">.statusBgTD'.$sno.' td{background:'.statusBg($rows['statusID']).'}</style>';
 }
+$statusColor = trim((string)statusBg($rows['statusID']));
+if (!preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusColor)) {
+    $statusColor = '#ffffff';
+}
+echo '<style type="text/css">table.orders-table > tbody > tr.statusBgTD'.$sno.' > td.order-status-cell{background-color:'.$statusColor.' !important;}</style>';
 echo '<tr class="statusBgTD'.$sno.' order-row">
 <td>&nbsp; '.$sno.'</td>
 <td>'.$rows['invoiceNo'].((isset($mergedInvoiceMap[$rows['invoiceNo']]) && $mergedInvoiceMap[$rows['invoiceNo']] > 1) ? ' <span class="label label-warning">Merged</span>' : '').'<strong><br>'.$rows['documentOrderNo'].'</strong></td>
@@ -1568,7 +1595,7 @@ echo '<tr class="statusBgTD'.$sno.' order-row">
 <td>'.$rows['prodName'];
 if($msgTxt){echo '<div class="alert alert-danger smlTxt"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong><p>Error Fields :-</p> '.$msgTxt.'</strong></div>';}
 echo '</td>
-<td>'.statusNm($rows['statusID']).'</td>
+<td class="order-status-cell">'.statusNm($rows['statusID']).'</td>
 <td align="center">'.$getRDStg.'</td>
 <td align="center">'.viewDtTm($rows['createdDate']).'</td>
 <td align="center"><div class="table-action-buttons">

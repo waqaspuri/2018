@@ -9,6 +9,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 require_once(__DIR__ . '/../PHPMailer/Exception.php');
 require_once(__DIR__ . '/../PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/../PHPMailer/SMTP.php');
+require_once(__DIR__ . '/php/mail_config.php');
 
 $taskAttachmentFileColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 'attachmentFile'");
 if ($taskAttachmentFileColumn && mysqli_num_rows($taskAttachmentFileColumn) === 0) {
@@ -254,19 +255,8 @@ if(in_array('immediate', $_POST['sendBy'])){
 
 
 
-							 //merge field
-						$message = '<html><body><table>
-						<tbody>
-						Dear '.$rowsCtBk['applicantName'].'<br />
-						<div><p>'.trim($rowsEp['taskMessage']).'</p></div>
-						</td>
-						</tr>
-						<tr>
-						<td valign="top">
-						</td>
-						</tr>
-						</tbody>
-						</table></body></html>';
+						// Build the email body with the same greeting format used by cron emails.
+						$message = buildTaskEmailBody($rowsCtBk['applicantName'], trim($rowsEp['taskMessage']));
 						
 						$message = preg_replace('/[\x00-\x1F\x7F\xA0]/u', '', $message);
 
@@ -449,10 +439,8 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                                  . (($rowsOrdrInfo['invoiceNo'] != "") ? ' / '.$rowsOrdrInfo['invoiceNo'] : '');
                     }
 
-                    $message = '<html><body><table face="verdana"><tbody>
-                        Dear '.$rowsCtBk['applicantName'].'<br />
-                        <p>'.trim($rowsEp['taskMessage']).'</p>
-                        </tbody></table></body></html>';
+                    // Build the email body with the same greeting format used by cron emails.
+                    $message = buildTaskEmailBody($rowsCtBk['applicantName'], trim($rowsEp['taskMessage']));
 
                     // Merge fields
                     $values = array(
@@ -487,12 +475,12 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                     $mail = new PHPMailer();
                     $mail->CharSet  = 'UTF-8';
                     $mail->Encoding = 'base64';
-                    $mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+                    configureAppMailer($mail);
                     $mail->addAddress($to, $rowsCtBk['applicantName']);
                     if(!empty($to2)){
                         $mail->addCC($to2, $rowsCtBk['applicantName']);
                     }
-                    $mail->addBCC('waqaspuri@gmail.com', 'Waqas Chemicals');
+                    addConfiguredMailBcc($mail);
                     $mail->isHTML(true);
                     $mail->Subject = $subject;
                     $mail->Body    = $message;

@@ -1,6 +1,10 @@
 Options -Indexes
 DirectoryIndex index.php
 
+<FilesMatch "^\.env(?:\..*)?$">
+  Require all denied
+</FilesMatch>
+
 # ─── Enable mod_expires ────────────────────────────────
 
 

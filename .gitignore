@@ -1,0 +1,27 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+/php/connect-mysql.php
+
+# Runtime files
+*.log
+/php/cache/*
+/wAdmin/include/cache/*
+
+# User and product uploads
+/img/*
+!/img/.gitkeep
+
+# Local editor and operating-system files
+.DS_Store
+**/.DS_Store
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# Local archives and temporary files
+*.zip
+*.bak
+*.tmp
+*~

@@ -6,6 +6,8 @@ use PHPMailer\PHPMailer\PHPMailer;
 require_once(__DIR__ . '/../PHPMailer/Exception.php');
 require_once(__DIR__ . '/../PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/../PHPMailer/SMTP.php');
+require_once(__DIR__ . '/../php/mail_config.php');
+require_once(__DIR__ . '/../php/whatsapp_tasks.php');
 
 function bulkMessageIniBytes($value)
 {
@@ -35,10 +37,8 @@ if ($phpUploadLimitBytes > 0) {
 
 $recipientType = ($_POST['recipientType'] ?? $_GET['recipientType'] ?? 'customer') === 'vendor' ? 'vendor' : 'customer';
 $typeID = $recipientType === 'vendor' ? 2 : 1;
-$channel = ($_POST['channel'] ?? $_GET['channel'] ?? 'email') === 'sms' ? 'sms' : 'email';
-$requestHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-$requestHost = preg_replace('/:\\d+$/', '', $requestHost);
-$useLocalMailpit = in_array($requestHost, array('localhost', '127.0.0.1', '::1'), true);
+$requestedChannel = (string)($_POST['channel'] ?? $_GET['channel'] ?? 'email');
+$channel = in_array($requestedChannel, array('email', 'sms', 'whatsapp'), true) ? $requestedChannel : 'email';
 $notice = (string)($_SESSION['bulkMessageNotice'] ?? '');
 $noticeClass = (string)($_SESSION['bulkMessageNoticeClass'] ?? 'info');
 $deliveryReport = $_SESSION['bulkMessageReport'] ?? array();
@@ -60,8 +60,142 @@ if (!is_array($submittedIDs)) {
     $submittedIDs = array();
 }
 $selectedIDs = array_values(array_unique(array_filter(array_map('intval', $submittedIDs), static fn($id) => $id > 0)));
+$whatsAppTemplates = whatsgTaskTemplates();
+$whatsAppPreview = array();
+$whatsAppPreviewErrors = array();
+$whatsAppTemplateKey = (string)($_POST['whatsAppTemplate'] ?? '');
+$campaignValues = isset($_POST['campaignValues']) && is_array($_POST['campaignValues']) ? array_values($_POST['campaignValues']) : array();
+$mediaUri = trim((string)($_POST['mediaUri'] ?? ''));
+$previewOnly = (($_POST['bulkAction'] ?? '') === 'preview_whatsapp');
+
+function bulkWhatsAppPhone($value)
+{
+    $phone = preg_replace('/[^0-9+]/', '', (string)$value);
+    if (strpos($phone, '00') === 0) $phone = '+' . substr($phone, 2);
+    return preg_match('/^\\+[1-9][0-9]{7,14}$/', $phone) ? $phone : '';
+}
+
+function bulkWhatsAppContactValues($recipient, $phone)
+{
+    return array(
+        'applicant_name' => (string)($recipient['applicantName'] ?? ''),
+        'company_name' => (string)($recipient['companyName'] ?? ''),
+        'mobile_number' => $phone,
+        'second_email' => (string)($recipient['email2'] ?? '')
+    );
+}
+
+function buildBulkWhatsAppPreviews($conn, $ids, $templateKey, $templates, $campaignValues, $mediaUri)
+{
+    global $typeID;
+    $payloads = array();
+    $errors = array();
+    if (!isset($templates[$templateKey])) return array($payloads, array('Select a configured approved WhatsApp template.'));
+    $template = $templates[$templateKey];
+    if ($mediaUri !== '' && (!filter_var($mediaUri, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($mediaUri, PHP_URL_SCHEME)), array('http', 'https'), true))) {
+        return array($payloads, array('Media URL must be a public HTTP or HTTPS URL.'));
+    }
+    $variables = array_values(array_map('trim', $template['variables']));
+    $recipientFields = array('applicant_name', 'company_name', 'mobile_number', 'second_email');
+    foreach ($variables as $index => $variable) {
+        if (!in_array($variable, whatsgTaskMergeTagNames(), true)) return array($payloads, array('Unsupported template variable: {' . $variable . '}'));
+        if (!in_array($variable, $recipientFields, true) && trim((string)($campaignValues[$index] ?? '')) === '') {
+            return array($payloads, array('Enter a campaign value for {' . $variable . '} (template variable {{' . ($index + 1) . '}}).'));
+        }
+    }
+    if (!$ids) return array($payloads, array('Select at least one recipient.'));
+    $idsSQL = implode(',', array_map('intval', $ids));
+    $result = mysqli_query($conn, "SELECT id,companyName,applicantName,email2,mobileNumber FROM customers WHERE type='" . (int)$typeID . "' AND id IN (" . $idsSQL . ")");
+    while ($result && ($recipient = mysqli_fetch_assoc($result))) {
+        $phone = bulkWhatsAppPhone($recipient['mobileNumber'] ?? '');
+        $name = trim((string)($recipient['companyName'] ?? '')) ?: (trim((string)($recipient['applicantName'] ?? '')) ?: 'Customer #' . (int)$recipient['id']);
+        if ($phone === '') {
+            $errors[] = $name . ': invalid or missing WhatsApp number (use E.164, e.g. +923001234567).';
+            continue;
+        }
+        $contactValues = bulkWhatsAppContactValues($recipient, $phone);
+        $exampleArr = array();
+        foreach ($variables as $index => $variable) {
+            $exampleArr[] = in_array($variable, $recipientFields, true) ? $contactValues[$variable] : trim((string)$campaignValues[$index]);
+        }
+        $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $exampleArr, 'token' => '[configured in .env]');
+        if ($mediaUri !== '') $body['mediaUri'] = $mediaUri;
+        $payloads[] = array('recipient' => $name, 'body' => $body);
+    }
+    return array($payloads, $errors);
+}
+
+function bulkWhatsAppCurlPreview($body)
+{
+    $curlBody = $body;
+    $curlBody['token'] = 'YOUR_WHATSG_TOKEN';
+    $json = json_encode($curlBody, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return "curl --include --fail-with-body \\\n"
+        . "  --request POST 'https://whatsg.com/api/v1/send_templet' \\\n"
+        . "  --header 'Content-Type: application/json' \\\n"
+        . "  --header 'Authorization: Bearer YOUR_WHATSG_API_KEY' \\\n"
+        . '  --data-raw ' . escapeshellarg($json);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
+    if ($channel === 'whatsapp') {
+        list($whatsAppPreview, $whatsAppPreviewErrors) = buildBulkWhatsAppPreviews($conn, $selectedIDs, $whatsAppTemplateKey, $whatsAppTemplates, $campaignValues, $mediaUri);
+        loadMailEnvironment();
+        $apiKey = mailEnvironmentValue('WHATSG_API_KEY');
+        $token = mailEnvironmentValue('WHATSG_TOKEN');
+        if ($token === '') $token = $apiKey;
+        $fatalWhatsAppErrors = array_values(array_filter($whatsAppPreviewErrors, static function ($error) {
+            return strpos($error, 'Select a configured') === 0 || strpos($error, 'Media URL') === 0 || strpos($error, 'Unsupported template') === 0 || strpos($error, 'Enter a campaign value') === 0 || strpos($error, 'Select at least one') === 0;
+        }));
+        if (!$fatalWhatsAppErrors && (!$apiKey || !$token)) $fatalWhatsAppErrors[] = 'WhatsApp API credentials are missing from .env.';
+        if (!$fatalWhatsAppErrors && !function_exists('curl_init')) $fatalWhatsAppErrors[] = 'PHP cURL is not available.';
+
+        $sent = 0;
+        $failed = 0;
+        $deliveryReport = array();
+        $logTime = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('l, d-m-y h:i:s a');
+        if (!$fatalWhatsAppErrors) {
+            foreach ($whatsAppPreview as $preview) {
+                $body = $preview['body'];
+                $body['token'] = $token;
+                $curl = curl_init('https://whatsg.com/api/v1/send_templet');
+                curl_setopt_array($curl, array(
+                    CURLOPT_POST => true,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_TIMEOUT => 25,
+                    CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'Authorization: Bearer ' . $apiKey),
+                    CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                ));
+                $response = curl_exec($curl);
+                $httpCode = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($curl);
+                curl_close($curl);
+                $responseData = is_string($response) ? json_decode($response, true) : null;
+                $success = $curlError === '' && $httpCode >= 200 && $httpCode < 300 && is_array($responseData) && !empty($responseData['success']);
+                $status = $success ? 'SENT: HTTP ' . $httpCode . ' - ' . json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : 'FAILED: ' . ($curlError !== '' ? $curlError : ('HTTP ' . $httpCode . ' - ' . ($responseData['message'] ?? 'WhatsApp API rejected the request.')));
+                $logBody = $preview['body'];
+                $logBody['token'] = '[REDACTED]';
+                $logResult = insertSMSLog('WHATSAPP: ' . $body['sendTo'], json_encode($logBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), substr($status, 0, 250), $logTime);
+                if ($success) {
+                    $sent++;
+                    if (count($deliveryReport) < 100) $deliveryReport[] = $preview['recipient'] . ' (' . $body['sendTo'] . '): WhatsApp sent.';
+                } else {
+                    $failed++;
+                    if (count($deliveryReport) < 100) $deliveryReport[] = $preview['recipient'] . ' (' . $body['sendTo'] . '): WhatsApp failed — ' . $status;
+                }
+                if ($logResult !== true && count($deliveryReport) < 100) $deliveryReport[] = 'Could not save WhatsApp log for ' . $body['sendTo'] . ': ' . (string)$logResult;
+            }
+        }
+        foreach ($whatsAppPreviewErrors as $recipientError) if (count($deliveryReport) < 100) $deliveryReport[] = 'Skipped: ' . $recipientError;
+        $notice = $fatalWhatsAppErrors ? implode(' ', $fatalWhatsAppErrors) : 'WhatsApp dispatch finished: ' . $sent . ' sent, ' . $failed . ' failed, ' . count($whatsAppPreviewErrors) . ' skipped.';
+        $noticeClass = $fatalWhatsAppErrors || $failed || $whatsAppPreviewErrors ? 'warning' : 'success';
+        $_SESSION['bulkMessageNotice'] = $notice;
+        $_SESSION['bulkMessageNoticeClass'] = $noticeClass;
+        $_SESSION['bulkMessageReport'] = $deliveryReport;
+        header('Location: bulkMessages.php?recipientType=' . urlencode($recipientType) . '&channel=whatsapp', true, 303);
+        exit;
+    }
     $subject = trim((string)($_POST['subject'] ?? ''));
     $bcc = trim((string)($_POST['bcc'] ?? ''));
     $message = trim((string)($_POST['message'] ?? ''));
@@ -228,15 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 $mail = new PHPMailer();
                 $mail->CharSet = 'UTF-8';
                 $mail->Encoding = 'base64';
-                // Keep Mailpit local-only; production uses the application's existing PHP mail transport.
-                if ($useLocalMailpit) {
-                    $mail->isSMTP();
-                    $mail->Host = '127.0.0.1';
-                    $mail->Port = 1025;
-                    $mail->SMTPAuth = false;
-                    $mail->Timeout = 10;
-                }
-                $mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+                configureAppMailer($mail);
                 $mail->addAddress($to, (string)$recipient['applicantName']);
                 if ($bcc !== '') {
                     $mail->addBCC($bcc);
@@ -247,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 }
                 $mail->isHTML(true);
                 $mail->Subject = strtr($subject, $replacements);
-                $emailBody = '<html><body style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;">' . $personalMessage . '<br><br></body></html>';
+                $emailBody = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#000000;">' . $personalMessage . '</div>';
                 $mail->Body = appendConfiguredEmailFooter($conn, $emailBody);
                 foreach ($uploadedAttachments as $attachment) {
                     $mail->addAttachment($attachment['path'], $attachment['name']);
@@ -305,15 +431,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $previewOnly && $channel === 'whatsapp') {
+    list($whatsAppPreview, $whatsAppPreviewErrors) = buildBulkWhatsAppPreviews($conn, $selectedIDs, $whatsAppTemplateKey, $whatsAppTemplates, $campaignValues, $mediaUri);
+}
+
 $recipients = array();
-$recipientResult = mysqli_query($conn, "SELECT id,companyName,applicantName,email,mobileNumber FROM customers WHERE type='" . $typeID . "' ORDER BY companyName ASC");
+$recipientResult = mysqli_query($conn, "SELECT id,companyName,applicantName,email,email2,mobileNumber FROM customers WHERE type='" . $typeID . "' ORDER BY companyName ASC");
 while ($recipientResult && ($row = mysqli_fetch_assoc($recipientResult))) {
     $recipients[] = $row;
 }
 include "include/header.php";
 ?>
 <section role="main" class="content-body">
-<header class="page-header"><h2>Bulk Email / SMS</h2></header>
+<header class="page-header"><h2>Bulk Email / SMS / WhatsApp</h2></header>
 <div class="row"><div class="col-lg-12"><section class="panel">
 <header class="panel-heading"><h2 class="panel-title">Send a message to selected customers or vendors</h2></header>
 <div class="panel-body">
@@ -323,6 +453,18 @@ include "include/header.php";
 <?php foreach ($deliveryReport as $reportLine): ?><li><?=htmlspecialchars((string)$reportLine, ENT_QUOTES, 'UTF-8');?></li><?php endforeach; ?>
 </ul></div>
 <?php endif; ?>
+<?php if ($channel === 'whatsapp' && ($whatsAppPreview || $whatsAppPreviewErrors)): ?>
+<div class="panel panel-default"><div class="panel-heading"><strong>WhatsApp payload preview — no messages sent</strong></div><div class="panel-body">
+<?php foreach ($whatsAppPreviewErrors as $previewError): ?><div class="alert alert-warning"><?=htmlspecialchars($previewError, ENT_QUOTES, 'UTF-8');?></div><?php endforeach; ?>
+<?php foreach ($whatsAppPreview as $payloadPreview): ?>
+<h5><?=htmlspecialchars($payloadPreview['recipient'], ENT_QUOTES, 'UTF-8');?></h5>
+<strong>JSON payload</strong>
+<pre><?=htmlspecialchars(json_encode($payloadPreview['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');?></pre>
+<strong>cURL command</strong> <small class="text-muted">Replace the two credential placeholders before running.</small>
+<pre><?=htmlspecialchars(bulkWhatsAppCurlPreview($payloadPreview['body']), ENT_QUOTES, 'UTF-8');?></pre>
+<?php endforeach; ?>
+</div></div>
+<?php endif; ?>
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/summernote/summernote.css">
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/summernote/summernote-bs3.css">
 <form method="get" class="form-inline" style="margin-bottom:18px" id="recipientTypeForm">
@@ -330,13 +472,14 @@ include "include/header.php";
 <label class="radio-inline"><input type="radio" name="recipientType" value="customer" <?=$recipientType === 'customer' ? 'checked' : '';?> onchange="this.form.submit()"> Customer</label>
 <label class="radio-inline"><input type="radio" name="recipientType" value="vendor" <?=$recipientType === 'vendor' ? 'checked' : '';?> onchange="this.form.submit()"> Vendor</label>
 </form>
-<form method="post" id="bulkMessageForm" enctype="multipart/form-data" onsubmit="return confirmBulkSend()">
+<form method="post" id="bulkMessageForm" enctype="multipart/form-data" onsubmit="return confirmBulkSend(event)">
 <input type="hidden" name="recipientType" value="<?=htmlspecialchars($recipientType, ENT_QUOTES, 'UTF-8');?>">
 <input type="hidden" name="attachmentCount" id="attachmentCount" value="0">
 <div class="form-group" style="margin-right:18px">
 <span class="text-bold">Send by&nbsp;</span>
 <label class="radio-inline"><input type="radio" name="channel" value="email" <?=$channel === 'email' ? 'checked' : '';?>> Email</label>
 <label class="radio-inline"><input type="radio" name="channel" value="sms" <?=$channel === 'sms' ? 'checked' : '';?>> SMS</label>
+<label class="radio-inline"><input type="radio" name="channel" value="whatsapp" <?=$channel === 'whatsapp' ? 'checked' : '';?>> WhatsApp</label>
 </div>
 <div class="form-group" style="margin:12px 0">
 <label><input type="checkbox" id="selectAllRecipients"> Select all eligible</label>
@@ -347,8 +490,8 @@ include "include/header.php";
 <thead><tr><th>Select</th><th>Company</th><th>Contact</th><th>Email</th><th>Mobile</th></tr></thead>
 <tbody>
 <?php foreach ($recipients as $recipient):
-    $destination = $channel === 'sms' ? trim((string)$recipient['mobileNumber']) : trim((string)$recipient['email']);
-    $eligible = $destination !== '';
+    $destination = $channel === 'email' ? trim((string)$recipient['email']) : trim((string)$recipient['mobileNumber']);
+    $eligible = $channel === 'email' ? (bool)filter_var($destination, FILTER_VALIDATE_EMAIL) : (bulkWhatsAppPhone($destination) !== '');
     $checked = in_array((int)$recipient['id'], $selectedIDs, true);
 ?>
 <tr>
@@ -361,13 +504,19 @@ include "include/header.php";
 <?php endforeach; ?>
 <?php if (!$recipients): ?><tr><td colspan="5" class="text-center">No recipients found for this type.</td></tr><?php endif; ?>
 </tbody></table></div>
+<div id="whatsAppCampaignFields" style="display:none">
+<div class="form-group"><label for="whatsAppTemplate">Approved WhatsApp template</label><select class="form-control" name="whatsAppTemplate" id="whatsAppTemplate"><option value="">Select template</option><?php foreach ($whatsAppTemplates as $key => $template): ?><option value="<?=htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');?>" <?=$whatsAppTemplateKey === (string)$key ? 'selected' : '';?>><?=htmlspecialchars((string)$key . ' (' . $template['name'] . ')', ENT_QUOTES, 'UTF-8');?></option><?php endforeach; ?></select><p class="help-block">The approved template supplies the message wording. Values below fill its placeholders in order.</p></div>
+<div class="form-group"><label>Template values</label><div id="campaignVariableFields"></div><p class="help-block">Contact fields fill automatically. Enter campaign values manually for product or offer details, even when the product is new and not in the database.</p></div>
+<div class="form-group"><label for="mediaUri">Product image or media URL <span class="text-muted">(optional; one public URL)</span></label><input class="form-control" style="width:100%" type="url" name="mediaUri" id="mediaUri" value="<?=htmlspecialchars($mediaUri, ENT_QUOTES, 'UTF-8');?>" placeholder="https://example.com/product.jpg"><p class="help-block">Use a publicly accessible image URL. The approved WhatsApp template must support a media header for this to be accepted.</p></div>
+</div>
 <div class="form-group" id="subjectGroup"><label for="subject">Subject</label><input class="form-control" style="width:100%" type="text" name="subject" id="subject" maxlength="255" value="<?=htmlspecialchars($_POST['subject'] ?? '', ENT_QUOTES, 'UTF-8');?>"></div>
 <div class="form-group" id="bccGroup"><label for="bcc">BCC email <span class="text-muted">(optional)</span></label><input class="form-control" style="width:100%" type="email" name="bcc" id="bcc" value="<?=htmlspecialchars($_POST['bcc'] ?? '', ENT_QUOTES, 'UTF-8');?>" placeholder="Leave blank if not needed"><p class="help-block">The BCC recipient receives a copy of each bulk email. This field may be left empty.</p></div>
 <div class="form-group" id="messageGroup" style="width:100%"><label for="message">Message</label><textarea class="form-control" style="width:100%;min-height:180px" name="message" id="message"><?=htmlspecialchars($_POST['message'] ?? '', ENT_QUOTES, 'UTF-8');?></textarea>
 <p class="help-block">Email supports rich formatting. SMS is sent as plain text. Merge tags: <code>{company_name}</code>, <code>{contact_name}</code>, <code>{email}</code>, <code>{mobile}</code></p></div>
 <div class="form-group" id="attachmentGroup" style="width:100%"><label for="attachments">Attachments</label><input class="form-control" type="file" name="attachments[]" id="attachments" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,application/pdf,image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff"><p class="help-block">Attach multiple PDF or image files (maximum <?=number_format($maxAttachmentFileBytes / 1048576, 1);?> MB each, <?=number_format($maxAttachmentTotalBytes / 1048576, 1);?> MB total). Files are sent as attachments, not embedded images.</p></div>
-<button type="button" class="btn btn-default" onclick="showBulkPreview()">Preview message</button>
-<button type="submit" name="sendBulk" value="1" class="btn btn-primary">Send Bulk Message</button>
+<button type="button" class="btn btn-default" id="emailSmsPreviewButton" onclick="showBulkPreview()">Preview message</button>
+<button type="submit" name="bulkAction" value="preview_whatsapp" id="whatsAppPreviewButton" class="btn btn-default" style="display:none">Preview payloads</button>
+<button type="submit" name="sendBulk" value="1" class="btn btn-primary" id="bulkSendButton">Send Bulk Message</button>
 </form>
 <div class="modal fade" id="bulkPreviewModal" tabindex="-1" role="dialog" aria-labelledby="bulkPreviewTitle" aria-hidden="true">
 <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
@@ -389,6 +538,13 @@ function selectedBulkChannel() {
 }
 function updateBulkRecipients() {
     var channel = selectedBulkChannel();
+    document.getElementById('whatsAppCampaignFields').style.display = channel === 'whatsapp' ? '' : 'none';
+    document.getElementById('emailSmsPreviewButton').style.display = channel === 'whatsapp' ? 'none' : '';
+    document.getElementById('whatsAppPreviewButton').style.display = channel === 'whatsapp' ? '' : 'none';
+    document.getElementById('subject').disabled = channel !== 'email';
+    document.getElementById('whatsAppTemplate').disabled = channel !== 'whatsapp';
+    document.getElementById('mediaUri').disabled = channel !== 'whatsapp';
+    document.getElementById('message').disabled = channel === 'whatsapp';
     document.getElementById('subjectGroup').style.display = channel === 'email' ? '' : 'none';
     document.getElementById('bccGroup').style.display = channel === 'email' ? '' : 'none';
     document.getElementById('bcc').disabled = channel !== 'email';
@@ -397,9 +553,9 @@ function updateBulkRecipients() {
     updateMessageEditor(channel);
     document.querySelectorAll('.recipient-checkbox').forEach(function(box) {
         var row = box.closest('tr');
-        var destinationCell = row.children[channel === 'sms' ? 4 : 3];
+        var destinationCell = row.children[channel === 'email' ? 3 : 4];
         var destination = destinationCell.textContent.trim();
-        var eligible = channel === 'sms' ? validSmsDestination(destination) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destination);
+        var eligible = channel === 'email' ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destination) : (channel === 'sms' ? validSmsDestination(destination) : /^\+?[1-9]\d{7,14}$/.test(destination.replace(/[\s().-]/g, '')));
         box.disabled = !eligible;
         if (!eligible) box.checked = false;
     });
@@ -475,10 +631,15 @@ function showBulkPreview() {
     document.getElementById('bulkPreviewFrame').srcdoc = previewDocument;
     $('#bulkPreviewModal').modal('show');
 }
-function confirmBulkSend() {
+function confirmBulkSend(event) {
     var count = document.querySelectorAll('.recipient-checkbox:checked').length;
     if (!count) { alert('Select at least one eligible recipient.'); return false; }
     var content = getBulkMessageHtml();
+    if (selectedBulkChannel() === 'whatsapp') {
+        if (!document.getElementById('whatsAppTemplate').value) { alert('Select an approved WhatsApp template.'); return false; }
+        if (event && event.submitter && event.submitter.value === 'preview_whatsapp') return true;
+        return confirm('Send a separate WhatsApp template message to ' + count + ' recipient(s)?');
+    }
     var contentText = document.createElement('div');
     contentText.innerHTML = content;
     var plainText = (contentText.textContent || contentText.innerText || '').replace(/[\s\u00a0\u200b]+/g, ' ').trim();
@@ -491,6 +652,32 @@ function confirmBulkSend() {
     return confirm('Send this ' + selectedBulkChannel().toUpperCase() + ' message to ' + count + ' recipient(s)?');
 }
 document.addEventListener('DOMContentLoaded', function() {
+    var whatsAppTemplates = <?=json_encode($whatsAppTemplates, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);?>;
+    var initialCampaignValues = <?=json_encode(array_values($campaignValues), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);?>;
+    function renderCampaignVariables(keepValues) {
+        var key = document.getElementById('whatsAppTemplate').value;
+        var config = whatsAppTemplates[key];
+        var container = document.getElementById('campaignVariableFields');
+        var oldValues = keepValues ? Array.from(container.querySelectorAll('input[name="campaignValues[]"]')).map(function(input) { return input.value; }) : initialCampaignValues;
+        container.innerHTML = '';
+        if (!config || !Array.isArray(config.variables) || !config.variables.length) {
+            container.innerHTML = '<p class="text-muted">This template has no placeholders.</p>';
+            return;
+        }
+        config.variables.forEach(function(variable, index) {
+            var row = document.createElement('div');
+            row.className = 'form-group';
+            if (['applicant_name', 'company_name', 'mobile_number', 'second_email'].indexOf(variable) !== -1) {
+                row.innerHTML = '<input type="hidden" name="campaignValues[]" value=""><label>{{' + (index + 1) + '}} — {' + variable + '}</label><p class="form-control-static text-success">Filled from each recipient automatically</p>';
+            } else {
+                row.innerHTML = '<label for="campaignValue' + index + '">{{' + (index + 1) + '}} — {' + variable + '}</label><input class="form-control" id="campaignValue' + index + '" name="campaignValues[]" maxlength="1000" required placeholder="Enter campaign value for {' + variable + '}" value="">';
+                row.querySelector('input').value = oldValues[index] || '';
+            }
+            container.appendChild(row);
+        });
+    }
+    document.getElementById('whatsAppTemplate').addEventListener('change', function() { initialCampaignValues = []; renderCampaignVariables(false); });
+    renderCampaignVariables(false);
     document.querySelectorAll('input[name="channel"]').forEach(function(radio) { radio.addEventListener('change', updateBulkRecipients); });
     document.getElementById('selectAllRecipients').addEventListener('change', function() {
         document.querySelectorAll('.recipient-checkbox:not(:disabled)').forEach(function(box) { box.checked = this.checked; }, this);

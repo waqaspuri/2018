@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(mysql -uroot -proot -D 2018 -e \"SELECT id, orderID, subject, priorityID FROM tasks WHERE orderID='136' ORDER BY id ASC; SELECT id, priorityNm FROM task_priority ORDER BY id ASC;\")",
-      "Bash(php -r 'require \"/Applications/MAMP/htdocs/2018/php/connect-mysql.php\"; $res=mysqli_query\\($conn,\"SELECT id, orderID, subject, priorityID FROM tasks WHERE orderID=136 ORDER BY id ASC\"\\); while\\($row=mysqli_fetch_assoc\\($res\\)\\){echo json_encode\\($row\\),PHP_EOL;} echo \"--PRIORITIES--\",PHP_EOL; $res=mysqli_query\\($conn,\"SELECT id, priorityNm FROM task_priority ORDER BY id ASC\"\\); while\\($row=mysqli_fetch_assoc\\($res\\)\\){echo json_encode\\($row\\),PHP_EOL;}')",
-      "Bash(php -r 'require \"/Applications/MAMP/htdocs/2018/php/connect-mysql.php\"; $res=mysqli_query\\($conn,\"SELECT id, priorityID, subject FROM tasks WHERE id=1223\"\\); $row=mysqli_fetch_assoc\\($res\\); echo json_encode\\($row\\),PHP_EOL; $res2=mysqli_query\\($conn,\"SELECT COUNT\\(*\\) AS c FROM task_priority WHERE id=0\"\\); echo json_encode\\(mysqli_fetch_assoc\\($res2\\)\\),PHP_EOL;')"
-    ]
-  }
-}

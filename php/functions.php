@@ -361,9 +361,9 @@ function cronJobTotal($dt, $type)
 {
   global $conn;
   if ($type == "fc") {
-    $sqlSort = " dueDate>='" . $dt . "' and isExpired='0' ";
+    $sqlSort = " isExpired='0' and dueDate>'1970-01-01' and (dueDate>='" . $dt . "' OR (dueDate<'" . $dt . "' AND firstReminderSentAt IS NULL AND sendBy NOT LIKE '%immediate%')) ";
   } else if ($type == "pc") {
-    $sqlSort = " dueDate<'" . $dt . "' OR sendBy LIKE '%immediate%' ";
+    $sqlSort = " (dueDate<='" . $dt . "' OR sendBy LIKE '%immediate%' OR DATE(firstReminderSentAt)='" . $dt . "' OR DATE(secondReminderSentAt)='" . $dt . "') ";
   }
   $sql = mysqli_query($conn, "SELECT count(id) as t FROM tasks where " . $sqlSort);
   $rows = mysqli_fetch_assoc($sql);
@@ -677,7 +677,56 @@ function getApiData($billNo, $id)
 function buildTaskEmailBody($applicantName, $taskMessage)
 {
   $recipientName = htmlspecialchars((string)$applicantName, ENT_QUOTES, 'UTF-8');
-  return '<html><head><style>body,body *{font-size:medium!important;}</style></head><body style="font-family:Arial,Helvetica,sans-serif;font-size:medium;"><div style="font-family:Arial,Helvetica,sans-serif;font-size:medium;">Dear ' . $recipientName . ',<br><br><div class="task-email-message" style="font-family:Arial,Helvetica,sans-serif;font-size:medium;">' . (string)$taskMessage . '</div></div></body></html>';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#000000;">'
+    . '<p style="margin:0;">Dear ' . $recipientName . ',</p>'
+    . '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#000000;">'
+    . (string)$taskMessage
+    . '</div></div>';
+}
+
+function normalizeConfiguredEmailFooter($footerHtml)
+{
+  $footerHtml = (string)$footerHtml;
+
+  // Content pasted from mail clients often contains compatibility metadata and
+  // CSS that is not consistently supported by email applications.
+  $footerHtml = preg_replace('/<\/?wbr\b[^>]*>/i', '', $footerHtml);
+  $footerHtml = preg_replace('/\s(?:class|dir|data-[\w-]+)=("[^"]*"|\'[^\']*\')/i', '', $footerHtml);
+  $footerHtml = preg_replace_callback('/rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/i', function ($match) {
+    return sprintf('#%02x%02x%02x', min(255, (int)$match[1]), min(255, (int)$match[2]), min(255, (int)$match[3]));
+  }, $footerHtml);
+
+  // Use the broadly supported HTML width attribute for signature images.
+  $footerHtml = preg_replace_callback('/<img\b([^>]*)\sstyle=("|\')([^"\']*)\2([^>]*)>/i', function ($match) {
+    $style = $match[3];
+    $widthAttribute = '';
+    if (preg_match('/(?:^|;)\s*width\s*:\s*([0-9]+)(?:\.[0-9]+)?px\s*;?/i', $style, $widthMatch)) {
+      $widthAttribute = ' width="' . (int)$widthMatch[1] . '"';
+    }
+    $style = preg_replace('/(?:^|;)\s*width\s*:[^;]+;?/i', ';', $style);
+    $style = trim(preg_replace('/;+/', ';', $style), " ;\t\n\r\0\x0B");
+    $styleAttribute = $style === '' ? '' : ' style="' . htmlspecialchars($style, ENT_QUOTES, 'UTF-8') . '"';
+    return '<img' . $match[1] . $widthAttribute . $styleAttribute . $match[4] . '>';
+  }, $footerHtml);
+
+  $footerHtml = preg_replace_callback('/\sstyle=("|\')([^"\']*)\1/i', function ($match) {
+    $safeDeclarations = array();
+    foreach (explode(';', $match[2]) as $declaration) {
+      $declaration = trim($declaration);
+      if ($declaration === '' || strpos($declaration, ':') === false) {
+        continue;
+      }
+      list($property) = explode(':', $declaration, 2);
+      if (in_array(strtolower(trim($property)), array('overflow-wrap', 'caret-color', 'background-color', 'width'), true)) {
+        continue;
+      }
+      $safeDeclarations[] = $declaration;
+    }
+    return empty($safeDeclarations) ? '' : ' style="' . htmlspecialchars(implode(';', $safeDeclarations), ENT_QUOTES, 'UTF-8') . '"';
+  }, $footerHtml);
+  $footerHtml = str_ireplace('http://www.waqaschemicals.com', 'https://www.waqaschemicals.com', $footerHtml);
+
+  return $footerHtml;
 }
 
 function appendConfiguredEmailFooter($conn, $message)
@@ -699,7 +748,9 @@ function appendConfiguredEmailFooter($conn, $message)
     return $message;
   }
 
-  $footerHtml = '<div class="email-signature">' . $emailFooter . '</div>';
+  $footerHtml = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;color:#000000;margin-top:20px;">'
+    . normalizeConfiguredEmailFooter($emailFooter)
+    . '</div>';
   if (stripos($message, '</body>') !== false) {
     return preg_replace('/<\/body>/i', $footerHtml . '</body>', $message, 1);
   }

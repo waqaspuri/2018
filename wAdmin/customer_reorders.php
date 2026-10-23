@@ -4,23 +4,19 @@ require_once 'include/configure.php';
 require_once __DIR__ . '/../php/customer_reorders.php';
 
 function reorderEscape($value) { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
-$history = isset($_GET['history']) && is_string($_GET['history']) ? $_GET['history'] : '2';
-if (!in_array($history, array('2', '3', '5', 'all'), true)) $history = '2';
-$horizon = isset($_GET['horizon']) ? (int)$_GET['horizon'] : 30;
-if (!in_array($horizon, array(30, 60, 90), true)) $horizon = 30;
+
+$historyOptions = array('2' => 'Last 2 years', '3' => 'Last 3 years', '5' => 'Last 5 years', 'all' => 'All available history');
+$history = isset($_GET['history']) && is_string($_GET['history']) && isset($historyOptions[$_GET['history']]) ? $_GET['history'] : '2';
+$sort = isset($_GET['sort']) && is_string($_GET['sort']) && $_GET['sort'] === 'oldest' ? 'oldest' : 'newest';
 $search = isset($_GET['q']) && is_string($_GET['q']) ? trim($_GET['q']) : '';
 $productID = max(0, (int)($_GET['product'] ?? 0));
 $customerID = max(0, (int)($_GET['customer'] ?? 0));
-$timingLabels = array('due' => 'Due / overdue', 'soon' => 'Due soon', 'later' => 'Later', 'dormant' => 'Long overdue', 'insufficient' => 'Insufficient history');
-$timing = isset($_GET['timing']) && is_string($_GET['timing']) ? $_GET['timing'] : '';
-if (!isset($timingLabels[$timing])) $timing = '';
 $today = new DateTimeImmutable(date('Y-m-d'));
-$from = $history === 'all' ? '2000-01-01' : $today->modify('-' . $history . ' years')->format('Y-m-d');
+$from = $history === 'all' ? '2000-01-01' : $today->modify('-' . (int)$history . ' years')->format('Y-m-d');
+
 $statuses = array();
 $statusResult = mysqli_query($conn, 'SELECT id,status FROM status ORDER BY id');
-while ($statusResult && ($status = mysqli_fetch_assoc($statusResult))) {
-    $statuses[(int)$status['id']] = $status['status'];
-}
+while ($statusResult && ($status = mysqli_fetch_assoc($statusResult))) $statuses[(int)$status['id']] = $status['status'];
 $statusFilterApplied = isset($_GET['status_filter']) || array_key_exists('statuses', $_GET);
 $selectedStatuses = array();
 if ($statusFilterApplied) {
@@ -32,95 +28,89 @@ if ($statusFilterApplied) {
     }
     $selectedStatuses = array_values($selectedStatuses);
 } else {
-    // Preserve the previous default; Cancelled can now be explicitly selected.
-    foreach ($statuses as $statusID => $statusName) {
-        if ($statusID !== 4) $selectedStatuses[] = $statusID;
-    }
+    foreach ($statuses as $statusID => $statusName) if ($statusID !== 4) $selectedStatuses[] = $statusID;
 }
-$statusWhere = $selectedStatuses ? 'o.statusID IN (' . implode(',', $selectedStatuses) . ')' : '1=0';
-$dateSql = "CASE WHEN o.documentDate >= '2000-01-01' THEN DATE(o.documentDate) ELSE DATE(o.createdDate) END";
-$where = "$statusWhere AND ($dateSql) >= '$from' AND ($dateSql) <= '" . $today->format('Y-m-d') . "'";
-if ($productID) $where .= ' AND o.productID=' . $productID;
-if ($customerID) $where .= ' AND o.customerID=' . $customerID;
-$groups = array();
+
+$whereParts = array($selectedStatuses ? 'o.statusID IN (' . implode(',', $selectedStatuses) . ')' : '1=0');
+$dateSql = customerReorderTimelineDateSql();
+$whereParts[] = "($dateSql) >= '$from' AND ($dateSql) <= '" . $today->format('Y-m-d') . "'";
+if ($productID) $whereParts[] = 'o.productID=' . $productID;
+if ($customerID) $whereParts[] = 'o.customerID=' . $customerID;
+if ($search !== '') {
+    $searchSql = mysqli_real_escape_string($conn, $search);
+    $whereParts[] = "(c.companyName LIKE '%$searchSql%' OR c.applicantName LIKE '%$searchSql%' OR p.prodName LIKE '%$searchSql%')";
+}
+$where = implode(' AND ', $whereParts);
+$orderBy = $sort === 'oldest' ? 'activityDate ASC, o.id ASC' : 'activityDate DESC, o.id DESC';
+$pageSize = 50;
+$page = max(1, (int)($_GET['page'] ?? 1));
 $error = false;
+$total = 0;
+$orders = array();
 try {
-    $purchases = mysqli_query($conn, "SELECT o.id,o.customerID,o.productID,c.companyName,c.applicantName,p.prodName,s.status AS orderStatus,$dateSql AS purchaseDate
+    $countResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM orders o JOIN customers c ON c.id=o.customerID JOIN products p ON p.id=o.productID WHERE $where");
+    if (!$countResult) throw new RuntimeException('Order count unavailable');
+    $countRow = mysqli_fetch_assoc($countResult);
+    $total = (int)$countRow['total'];
+    $pages = max(1, (int)ceil($total / $pageSize));
+    $page = min($page, $pages);
+    $offset = ($page - 1) * $pageSize;
+    $result = mysqli_query($conn, "SELECT o.id,o.customerID,o.productID,c.companyName,c.applicantName,p.prodName,s.status AS orderStatus,$dateSql AS activityDate
         FROM orders o JOIN customers c ON c.id=o.customerID JOIN products p ON p.id=o.productID
-        LEFT JOIN status s ON s.id=o.statusID
-        WHERE $where ORDER BY purchaseDate,o.id");
-    if (!$purchases) throw new RuntimeException('Purchase history unavailable');
-    while ($purchase = mysqli_fetch_assoc($purchases)) {
-        $key = $purchase['customerID'] . ':' . $purchase['productID'];
-        if (!isset($groups[$key])) $groups[$key] = array('dates' => array(), 'orders' => 0);
-        $groups[$key]['dates'][] = $purchase['purchaseDate'];
-        $groups[$key]['orders']++;
-        $groups[$key]['order'] = $purchase;
-    }
+        LEFT JOIN status s ON s.id=o.statusID WHERE $where ORDER BY $orderBy LIMIT $offset,$pageSize");
+    if (!$result) throw new RuntimeException('Order history unavailable');
+    while ($row = mysqli_fetch_assoc($result)) $orders[] = $row;
 } catch (Exception $exception) {
-    error_log('Customer reorder forecast: ' . $exception->getMessage());
+    error_log('Customer order timeline: ' . $exception->getMessage());
     $error = true;
+    $pages = 1;
 }
-$rows = array();
-foreach ($groups as $group) {
-    $order = $group['order'];
-    if ($search !== '' && stripos($order['companyName'] . ' ' . $order['applicantName'] . ' ' . $order['prodName'], $search) === false) continue;
-    $estimate = customerReorderEstimate($group['dates'], $today, $horizon);
-    if (!$estimate['purchases'] || ($timing !== '' && $estimate['timing'] !== $timing)) continue;
-    $rows[] = array_merge($order, $estimate, array('orderCount' => $group['orders']));
-}
-usort($rows, function ($a, $b) {
-    return ($a['rank'] <=> $b['rank']) ?: (($a['daysUntil'] ?? PHP_INT_MAX) <=> ($b['daysUntil'] ?? PHP_INT_MAX)) ?: strcmp($a['companyName'], $b['companyName']) ?: ($a['productID'] <=> $b['productID']);
-});
-$total = count($rows);
-$pages = max(1, (int)ceil($total / 25));
-$page = min($pages, max(1, (int)($_GET['page'] ?? 1)));
-$visible = array_slice($rows, ($page - 1) * 25, 25);
 $products = mysqli_query($conn, 'SELECT id,prodName FROM products ORDER BY prodName');
-$customers = mysqli_query($conn, "SELECT DISTINCT c.id,c.companyName FROM customers c JOIN orders o ON o.customerID=c.id ORDER BY c.companyName");
-$filters = array('history' => $history, 'horizon' => $horizon, 'q' => $search, 'product' => $productID, 'customer' => $customerID, 'timing' => $timing, 'status_filter' => 1, 'statuses' => $selectedStatuses);
+$customers = mysqli_query($conn, 'SELECT id,companyName,applicantName FROM customers ORDER BY companyName,applicantName');
+$filters = array('history' => $history, 'sort' => $sort, 'q' => $search, 'product' => $productID, 'customer' => $customerID, 'status_filter' => 1, 'statuses' => $selectedStatuses);
 include 'include/header.php';
 ?>
 <section role="main" class="content-body">
-<header class="page-header"><h2>Customer Reorders</h2></header>
+<header class="page-header"><h2>Customer Order Timeline</h2></header>
 <section class="panel"><div class="panel-body">
-<p>Possible next purchases by customer and product. Due and upcoming reorders appear first.</p>
-<form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px">
+<style>
+.order-timeline{list-style:none;margin:24px 0 30px;padding:0 0 0 18px;border-left:2px solid #d9dfe5}
+.order-timeline-item{position:relative;margin:0 0 20px;padding:0 0 0 20px}
+.order-timeline-item:last-child{margin-bottom:0}
+.order-timeline-item:before{content:"";position:absolute;left:-26px;top:28px;width:12px;height:12px;border:3px solid #fff;border-radius:50%;background:#428bca;box-shadow:0 0 0 1px #428bca}
+.order-timeline-date{margin:0 0 6px;color:#687783;font-size:12px;font-weight:600}
+.order-timeline-card{padding:12px 15px;border:1px solid #e1e5e8;border-radius:4px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.order-timeline-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.order-timeline-product{margin:0 0 5px;font-weight:600;overflow-wrap:anywhere}
+.order-timeline-customer{margin:0;color:#687783;overflow-wrap:anywhere}
+html.dark .order-timeline-card{background:#282d36;border-color:#21262d}
+html.dark .order-timeline-date,html.dark .order-timeline-customer{color:#b8bec8}
+@media(max-width:600px){.order-timeline{margin-left:2px;padding-left:14px}.order-timeline-item{padding-left:12px}.order-timeline-item:before{left:-20px}}
+</style>
+<p>Review the actual order history for a product or customer. Each timeline item is one order; no reorder prediction is applied.</p>
+<form method="get" class="form-inline" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px">
 <input type="hidden" name="status_filter" value="1">
-<div><label for="reorder-statuses">Order statuses</label>
-<select class="form-control" id="reorder-statuses" name="statuses[]" multiple size="6" aria-describedby="reorder-status-help" style="min-width:240px">
-<?php foreach ($statuses as $statusID => $statusName): ?><option value="<?=$statusID?>" <?=in_array($statusID, $selectedStatuses, true)?'selected':''?>><?=reorderEscape($statusName)?></option><?php endforeach; ?>
-</select>
-<small id="reorder-status-help" class="text-muted">Hold Ctrl (Windows) or Command (Mac) to select several.</small><br>
-<button class="btn btn-link btn-xs" type="button" onclick="Array.prototype.forEach.call(document.getElementById('reorder-statuses').options,function(option){option.selected=true;});">Select all</button>
-<button class="btn btn-link btn-xs" type="button" onclick="Array.prototype.forEach.call(document.getElementById('reorder-statuses').options,function(option){option.selected=false;});">Clear</button></div>
-<label>Search<input class="form-control" name="q" value="<?=reorderEscape($search)?>" placeholder="Customer or product"></label>
-<label>History<select class="form-control" name="history"><?php foreach (array('2'=>'Last 2 years','3'=>'Last 3 years','5'=>'Last 5 years','all'=>'All available history') as $value=>$label): ?><option value="<?=reorderEscape($value)?>" <?=(string)$value===$history?'selected':''?>><?=reorderEscape($label)?></option><?php endforeach; ?></select></label>
-<label>Customer<select class="form-control" name="customer"><option value="0">All customers</option><?php while ($customers && ($customer=mysqli_fetch_assoc($customers))): ?><option value="<?=(int)$customer['id']?>" <?=$customerID===(int)$customer['id']?'selected':''?>><?=reorderEscape($customer['companyName'])?></option><?php endwhile; ?></select></label>
-<label>Product<select class="form-control" name="product"><option value="0">All products</option><?php while ($products && ($product=mysqli_fetch_assoc($products))): ?><option value="<?=(int)$product['id']?>" <?=$productID===(int)$product['id']?'selected':''?>><?=reorderEscape($product['prodName'])?></option><?php endwhile; ?></select></label>
-<label>Upcoming window<select class="form-control" name="horizon"><?php foreach (array(30,60,90) as $days): ?><option value="<?=$days?>" <?=$horizon===$days?'selected':''?>><?=$days?> days</option><?php endforeach; ?></select></label>
-<label>Timing<select class="form-control" name="timing"><option value="">All</option><?php foreach ($timingLabels as $value=>$label): ?><option value="<?=$value?>" <?=$timing===$value?'selected':''?>><?=$label?></option><?php endforeach; ?></select></label>
-<button class="btn btn-primary" type="submit">Generate report</button><a class="btn btn-default" href="customer_reorders.php">Reset</a>
+<div class="form-group"><label for="timeline-product">Product</label><select class="form-control" id="timeline-product" name="product"><option value="0">All products</option><?php while ($products && ($product=mysqli_fetch_assoc($products))): ?><option value="<?=(int)$product['id']?>" <?=$productID===(int)$product['id']?'selected':''?>><?=reorderEscape($product['prodName'])?></option><?php endwhile; ?></select></div>
+<div class="form-group"><label for="timeline-customer">Customer</label><select class="form-control" id="timeline-customer" name="customer"><option value="0">All customers</option><?php while ($customers && ($customer=mysqli_fetch_assoc($customers))): ?><option value="<?=(int)$customer['id']?>" <?=$customerID===(int)$customer['id']?'selected':''?>><?=reorderEscape($customer['companyName'] ?: $customer['applicantName'])?></option><?php endwhile; ?></select></div>
+<div class="form-group"><label for="timeline-history">Date range</label><select class="form-control" id="timeline-history" name="history"><?php foreach ($historyOptions as $value=>$label): ?><option value="<?=reorderEscape($value)?>" <?=$history===$value?'selected':''?>><?=reorderEscape($label)?></option><?php endforeach; ?></select></div>
+<div class="form-group"><label for="timeline-sort">Sort</label><select class="form-control" id="timeline-sort" name="sort"><option value="newest" <?=$sort==='newest'?'selected':''?>>Newest first</option><option value="oldest" <?=$sort==='oldest'?'selected':''?>>Oldest first</option></select></div>
+<div class="form-group"><label for="timeline-search">Search</label><input class="form-control" id="timeline-search" name="q" value="<?=reorderEscape($search)?>" placeholder="Customer or product"></div>
+<div class="form-group"><label for="timeline-statuses">Order status</label><select class="form-control" id="timeline-statuses" name="statuses[]" multiple size="4" style="min-width:190px"><?php foreach ($statuses as $statusID=>$statusName): ?><option value="<?=$statusID?>" <?=in_array($statusID,$selectedStatuses,true)?'selected':''?>><?=reorderEscape($statusName)?></option><?php endforeach; ?></select></div>
+<button class="btn btn-primary" type="submit">Show timeline</button><a class="btn btn-default" href="customer_reorders.php">Reset</a>
 </form>
-<?php if (!$selectedStatuses): ?><div class="alert alert-info">Select at least one order status and click Generate report.</div><?php endif; ?>
-<p class="text-muted"><small>Included statuses: <?=reorderEscape(implode(', ', array_intersect_key($statuses, array_flip($selectedStatuses)))) ?: 'None'?>.</small></p>
-<p class="text-muted"><small>Only orders with the selected current statuses contribute to order counts, intervals and predictions. Order date uses the document date, or creation date if missing. The usual interval uses up to five recent gaps, giving more weight to recent orders. Orders on the same day count as one occasion. Confidence reflects consistency, not payment confirmation or a guaranteed repurchase. One order occasion is insufficient.</small></p>
-<p class="text-muted"><small>Lookup: <?=reorderEscape($from)?> to <?=$today->format('Y-m-d')?>. Customers with less history use the available records. Refreshed each time this page opens.</small></p>
-<?php if ($error): ?><div class="alert alert-danger">Purchase history could not be loaded. Please try again.</div><?php else: ?>
-<p><?=number_format($total)?> customer–product matches</p>
-<div class="table-responsive"><table class="table table-striped table-condensed">
-<thead><tr><th>Customer</th><th>Product</th><th>Order occasions</th><th>Latest order</th><th>Usual interval</th><th>Estimated next purchase</th><th>Timing</th><th>Confidence</th></tr></thead>
-<tbody><?php if (!$visible): ?><tr><td colspan="8">No orders found for the selected statuses and filters. Try other statuses or a longer history.</td></tr><?php endif; ?>
-<?php foreach ($visible as $row): ?>
-<tr><td><a href="customers.php?action=view&amp;id=<?=(int)$row['customerID']?>"><?=reorderEscape($row['companyName'] ?: $row['applicantName'])?></a></td>
-<td><?=reorderEscape($row['prodName'])?></td><td><?=(int)$row['purchases']?> days <small class="text-muted">(<?=(int)$row['orderCount']?> orders)</small></td>
-<td><a href="orders.php?action=view&amp;id=<?=(int)$row['id']?>"><?=reorderEscape($row['last'])?></a><br><small class="text-muted"><?=reorderEscape($row['orderStatus'] ?? '')?></small></td>
-<td><?=reorderEscape(customerReorderIntervalLabel($row['interval']))?><?php if ($row['interval']!==null): ?><br><small class="text-muted"><?=(int)$row['interval']?> days · <?=(int)$row['gapCount']?> recent gaps</small><?php endif; ?></td><td><?=reorderEscape($row['next'] ?? 'Not enough history')?></td>
-<td><span class="label label-<?=in_array($row['timing'],array('due','soon'),true)?'warning':'default'?>"><?=reorderEscape($timingLabels[$row['timing']])?></span><?php if ($row['daysUntil']!==null): ?><br><small><?=$row['daysUntil']<0?abs($row['daysUntil']).' days overdue':($row['daysUntil']===0?'Today':'In '.$row['daysUntil'].' days')?></small><?php endif; ?></td>
-<td><?=reorderEscape($row['confidence'])?></td></tr>
-<?php endforeach; ?></tbody></table></div>
-<nav aria-label="Reorder pages">Page <?=$page?> of <?=$pages?> &nbsp;
-<?php if ($page>1): ?><a class="btn btn-default btn-sm" href="?<?=reorderEscape(http_build_query(array_merge($filters,array('page'=>$page-1))))?>">Previous</a><?php endif; ?>
-<?php if ($page<$pages): ?><a class="btn btn-default btn-sm" href="?<?=reorderEscape(http_build_query(array_merge($filters,array('page'=>$page+1))))?>">Next</a><?php endif; ?></nav>
+<p class="text-muted"><small>Dates use the order's last modified date, then document date, then creation date. Orders edited later may therefore appear later in the timeline.</small></p>
+<?php if (!$selectedStatuses): ?><div class="alert alert-info">Select at least one order status to show orders.</div><?php endif; ?>
+<?php if ($error): ?><div class="alert alert-danger">Order history could not be loaded. Please try again.</div><?php else: ?>
+<p><strong><?=number_format($total)?></strong> orders found<?php if ($productID): ?> for the selected product<?php endif; ?>.</p>
+<?php if (!$orders): ?><div class="alert alert-info">No orders match these filters. Try another product, status, or date range.</div><?php else: ?>
+<ol class="order-timeline">
+<?php foreach ($orders as $row): ?>
+<li class="order-timeline-item"><div class="order-timeline-date"><?=reorderEscape($row['activityDate'])?></div>
+<div class="order-timeline-card"><div class="order-timeline-heading"><strong><a href="orders.php?action=view&amp;id=<?=(int)$row['id']?>">Order #<?=(int)$row['id']?></a></strong> <span class="label label-default"><?=reorderEscape($row['orderStatus'] ?? 'Unknown status')?></span></div>
+<p class="order-timeline-product"><?=reorderEscape($row['prodName'])?></p><p class="order-timeline-customer"><i class="fa fa-user"></i> <a href="customers.php?action=view&amp;id=<?=(int)$row['customerID']?>"><?=reorderEscape($row['companyName'] ?: $row['applicantName'])?></a></p></div></li>
+<?php endforeach; ?>
+</ol>
+<nav aria-label="Timeline pages">Page <?=$page?> of <?=$pages?> &nbsp;<?php if ($page>1): ?><a class="btn btn-default btn-sm" href="?<?=reorderEscape(http_build_query(array_merge($filters,array('page'=>$page-1))))?>">Previous</a><?php endif; ?> <?php if ($page<$pages): ?><a class="btn btn-default btn-sm" href="?<?=reorderEscape(http_build_query(array_merge($filters,array('page'=>$page+1))))?>">Next</a><?php endif; ?></nav>
+<?php endif; ?>
 <?php endif; ?></div></section></section></div></section>
 <?php include 'include/footer.php'; ?>

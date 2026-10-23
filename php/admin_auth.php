@@ -76,11 +76,12 @@ function adminStartEmailOtp($admin) {
     require_once __DIR__ . '/../PHPMailer/Exception.php';
     require_once __DIR__ . '/../PHPMailer/PHPMailer.php';
     require_once __DIR__ . '/../PHPMailer/SMTP.php';
+    require_once __DIR__ . '/mail_config.php';
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     try {
         $mail = new \PHPMailer\PHPMailer\PHPMailer();
         $mail->CharSet = 'UTF-8';
-        $mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+        configureAppMailer($mail);
         $mail->addAddress($email);
         $mail->Subject = 'Admin sign-in verification code';
         $mail->Body = "Your admin sign-in verification code is: " . $code . "\n\nThis code expires in 5 minutes. If you did not try to sign in, you can ignore this email.";

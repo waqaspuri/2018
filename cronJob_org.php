@@ -1,4 +1,5 @@
 <?php
+use PHPMailer\PHPMailer\PHPMailer;
 //$to = "waqaspuri@gmail.com";
 //$subject = "cron job working now";
 //$message = "cron job working...";
@@ -11,6 +12,10 @@
 <?php
 include "php/connect-mysql.php";
 include "php/functions.php";
+require_once(__DIR__ . '/PHPMailer/Exception.php');
+require_once(__DIR__ . '/PHPMailer/PHPMailer.php');
+require_once(__DIR__ . '/PHPMailer/SMTP.php');
+require_once(__DIR__ . '/php/mail_config.php');
 //exprd
 $dtAry = explode(" ",currDateTimeGmt());
 print_r($dtAry);
@@ -60,7 +65,14 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 						$headers .= "Content-type:text/html;charset=iso-8859-1" . "\r\n";
 						$headers .= 'From: Waqas Chemicals <info@waqaschemicals.com>' . "\r\n";
 						$message = appendConfiguredEmailFooter($conn, $message);
-						@mail($to,$subject,$message,$headers);	
+						$mail = new PHPMailer();
+						$mail->CharSet = 'UTF-8';
+						configureAppMailer($mail);
+						$mail->addAddress($to);
+						$mail->isHTML(true);
+						$mail->Subject = $subject;
+						$mail->Body = $message;
+						$mail->send();
 					}
 				}
 				

@@ -10,6 +10,21 @@ use PHPMailer\PHPMailer\PHPMailer;
 require_once(__DIR__ . '/../PHPMailer/Exception.php');
 require_once(__DIR__ . '/../PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/../PHPMailer/SMTP.php');
+require_once(__DIR__ . '/../php/mail_config.php');
+require_once(__DIR__ . '/../php/whatsapp_tasks.php');
+
+$taskWhatsAppTemplateColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 'taskWhatsAppTemplate'");
+if ($taskWhatsAppTemplateColumn && mysqli_num_rows($taskWhatsAppTemplateColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE tasks ADD COLUMN taskWhatsAppTemplate VARCHAR(100) NOT NULL DEFAULT '' AFTER taskSMSID");
+}
+$whatsAppTemplates = whatsgTaskTemplates();
+
+if (!isset($_GET['status']) && empty($_GET['action']) && !isset($_GET['act']) && (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET')) {
+    $defaultTaskQuery = $_GET;
+    $defaultTaskQuery['status'] = 'scheduled';
+    header('Location: tasks.php?' . http_build_query($defaultTaskQuery));
+    exit;
+}
 
 $taskAttachmentFileColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 'attachmentFile'");
 if ($taskAttachmentFileColumn && mysqli_num_rows($taskAttachmentFileColumn) === 0) {
@@ -169,6 +184,7 @@ $dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
 $dueDateSql = "'" . mysqli_real_escape_string($conn, $dueDateForSql) . "'";
 
 $taskSMSID = !empty($_POST['taskSMSID']) ? mysqli_real_escape_string($conn, $_POST['taskSMSID']) : '0';
+$taskWhatsAppTemplate = isset($_POST['taskWhatsAppTemplate']) && is_string($_POST['taskWhatsAppTemplate']) && isset($whatsAppTemplates[$_POST['taskWhatsAppTemplate']]) ? mysqli_real_escape_string($conn, $_POST['taskWhatsAppTemplate']) : '';
 $taskMessageID = !empty($_POST['taskMessageID']) ? mysqli_real_escape_string($conn, $_POST['taskMessageID']) : '0';
 $orderID = !empty($_POST['orderID']) ? mysqli_real_escape_string($conn, $_POST['orderID']) : '0';
 $currentStatusID = !empty($_POST['currentStatusID']) ? mysqli_real_escape_string($conn, $_POST['currentStatusID']) : '0';
@@ -181,6 +197,10 @@ $taskMessage = isset($_POST['taskMessage']) ? mysqli_real_escape_string($conn, $
 $taskSMS = isset($_POST['taskSMS']) ? mysqli_real_escape_string($conn, $_POST['taskSMS']) : '';
 $sendByStr = mysqli_real_escape_string($conn, @implode(",", $sendBy));
 $attachmentError = '';
+if (in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
+    header('location: tasks.php?action=add&whatsappError=template');
+    exit;
+}
 $attachments = saveTaskAttachments(isset($_FILES['taskAttachments']) ? $_FILES['taskAttachments'] : null, $attachmentError);
 if ($attachments === false) {
     header('location: tasks.php?action=add&uploadError=' . rawurlencode($attachmentError));
@@ -189,8 +209,8 @@ if ($attachments === false) {
 $attachmentFile = mysqli_real_escape_string($conn, !empty($attachments[0][0]) ? $attachments[0][0] : '');
 $attachmentName = mysqli_real_escape_string($conn, !empty($attachments[0][1]) ? $attachments[0][1] : '');
 
-mysqli_query($conn,"INSERT INTO tasks (isExpired,taskSMSID,taskMessageID,repeatDate,orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
-('".$isExpired."','".$taskSMSID."','".$taskMessageID."',".$repeatDateSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
+mysqli_query($conn,"INSERT INTO tasks (isExpired,taskSMSID,taskWhatsAppTemplate,taskMessageID,repeatDate,orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
+('".$isExpired."','".$taskSMSID."','".$taskWhatsAppTemplate."','".$taskMessageID."',".$repeatDateSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
 $taskID = mysqli_insert_id($conn);
 saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
 foreach ($attachments as $attachment) {
@@ -200,9 +220,9 @@ foreach ($attachments as $attachment) {
     }
 }
 
-if(in_array('immediate', $_POST['sendBy'])){
+if(in_array('immediate', $sendBy, true)){
 
-	if(in_array('mail', $_POST['sendBy'])){
+	if(in_array('mail', $sendBy, true)){
 		$sqlEp = mysqli_query($conn,"SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy FROM tasks WHERE id='".$taskID."'  ");
 		$numRowsExp = mysqli_num_rows($sqlEp);
 		if($numRowsExp>0){
@@ -292,7 +312,7 @@ if(in_array('immediate', $_POST['sendBy'])){
 		}
 	}
 
-	if(in_array('sms', $_POST['sendBy'])){
+	if(in_array('sms', $sendBy, true)){
 	//SMS
 
 
@@ -368,6 +388,12 @@ if(in_array('immediate', $_POST['sendBy'])){
 	}
 }
 
+if (in_array('immediate', $sendBy, true) && in_array('whatsapp', $sendBy, true)) {
+    $whatsAppResult = sendTaskWhatsApp($conn, $taskID);
+    $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
+    header('location: tasks.php?action=view&id=' . (int)$taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+    exit;
+}
 header("location: orders.php?action=view&id=".$_POST['orderID']."&act=1");
 }else if(isset($_POST['action']) && $_POST['action']=="update"){
 
@@ -379,6 +405,7 @@ $dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
 
 // Sanitize integer fields — default to 0 (NOT NULL columns)
 $taskSMSID       = !empty($_POST['taskSMSID'])       ? (int)$_POST['taskSMSID']       : 0;
+$taskWhatsAppTemplate = isset($_POST['taskWhatsAppTemplate']) && is_string($_POST['taskWhatsAppTemplate']) && isset($whatsAppTemplates[$_POST['taskWhatsAppTemplate']]) ? mysqli_real_escape_string($conn, $_POST['taskWhatsAppTemplate']) : '';
 $taskMessageID   = !empty($_POST['taskMessageID'])   ? (int)$_POST['taskMessageID']   : 0;
 $orderID         = !empty($_POST['orderID'])         ? (int)$_POST['orderID']         : 0;
 $currentStatusID = !empty($_POST['currentStatusID']) ? (int)$_POST['currentStatusID'] : 0;
@@ -390,6 +417,11 @@ $isSecondReminder = isset($_POST['isSecondReminder']) ? (int)$_POST['isSecondRem
 // Fix: safely get sendBy (array — not sent when nothing checked)
 $sendBy = isset($_POST['sendBy']) && is_array($_POST['sendBy']) ? $_POST['sendBy'] : [];
 $sendByStr = mysqli_real_escape_string($conn, implode(',', $sendBy));
+$editTaskID = (int)($_POST['id'] ?? 0);
+if (in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
+    header('location: tasks.php?action=edit&id=' . $editTaskID . '&whatsappError=template');
+    exit;
+}
 $attachmentSql = '';
 $attachmentError = '';
 $attachments = saveTaskAttachments(isset($_FILES['taskAttachments']) ? $_FILES['taskAttachments'] : null, $attachmentError);
@@ -415,6 +447,7 @@ if ($existingReminderRow && (
 mysqli_query($conn, "UPDATE tasks SET 
     taskMessageID   = " . $taskMessageID   . ",
     taskSMSID       = " . $taskSMSID       . ",
+    taskWhatsAppTemplate = '" . $taskWhatsAppTemplate . "',
     repeatDate      = '" . mysqli_real_escape_string($conn, $repeatDateForSql) . "',
     orderID         = " . $orderID         . ",
     currentStatusID = " . $currentStatusID . ",
@@ -443,6 +476,15 @@ header("location: tasks.php?act=2");
 }
 }
 if(isset($_GET['action']) && $_GET['action']=="mail"){
+    $taskIdForChannelCheck = (int)($_GET['id'] ?? 0);
+    $channelCheck = mysqli_query($conn, "SELECT sendBy FROM tasks WHERE id='" . $taskIdForChannelCheck . "' LIMIT 1");
+    $channelTask = $channelCheck ? mysqli_fetch_assoc($channelCheck) : null;
+    $enabledChannels = array_map('trim', explode(',', (string)($channelTask['sendBy'] ?? '')));
+    if (!$channelTask || !in_array('mail', $enabledChannels, true)) {
+        $_SESSION['taskWhatsAppNotice'] = $channelTask ? 'Mail is not enabled for this task.' : 'Task not found.';
+        header('location: tasks.php?action=view&id=' . $taskIdForChannelCheck . '&act=4');
+        exit;
+    }
     $sqlEp = mysqli_query($conn,"SELECT id,assignTo,orderID,subject,taskMessage,sendBy FROM tasks WHERE id='".mysqli_real_escape_string($conn,$_GET['id'])."'");
     $numRowsExp = mysqli_num_rows($sqlEp);
 
@@ -505,12 +547,12 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                     $mail = new PHPMailer();
                     $mail->CharSet  = 'UTF-8';
                     $mail->Encoding = 'base64';
-                    $mail->setFrom('info@waqaschemicals.com', 'WAQAS CHEMICALS');
+                    configureAppMailer($mail);
                     $mail->addAddress($to, $rowsCtBk['applicantName']);
                     if(!empty($to2)){
                         $mail->addCC($to2, $rowsCtBk['applicantName']);
                     }
-                    $mail->addBCC('waqaspuri@gmail.com', 'Waqas Chemicals');
+                    addConfiguredMailBcc($mail);
                     $mail->isHTML(true);
                     $mail->Subject = $subject;
                     $mail->Body    = $message;
@@ -527,6 +569,15 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
     exit;
 }
 if(isset($_GET['action']) && $_GET['action']=="SMS"){
+	$taskIdForChannelCheck = (int)($_GET['id'] ?? 0);
+	$channelCheck = mysqli_query($conn, "SELECT sendBy FROM tasks WHERE id='" . $taskIdForChannelCheck . "' LIMIT 1");
+	$channelTask = $channelCheck ? mysqli_fetch_assoc($channelCheck) : null;
+	$enabledChannels = array_map('trim', explode(',', (string)($channelTask['sendBy'] ?? '')));
+	if (!$channelTask || !in_array('sms', $enabledChannels, true)) {
+		$_SESSION['taskWhatsAppNotice'] = $channelTask ? 'SMS is not enabled for this task.' : 'Task not found.';
+		header('location: tasks.php?action=view&id=' . $taskIdForChannelCheck . '&act=4');
+		exit;
+	}
 	//Notification here
 $sqlEp = mysqli_query($conn,"SELECT id,assignTo,orderID,subject,taskSMS,sendBy FROM tasks WHERE id='".$_GET['id']."'  ");
 $numRowsExp = mysqli_num_rows($sqlEp);
@@ -601,6 +652,22 @@ header("location: tasks.php?action=view&id=".$_GET['id']."&act=2");
 
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'WhatsAppPreview') {
+    $taskID = (int)($_GET['id'] ?? 0);
+    $whatsAppResult = sendTaskWhatsApp($conn, $taskID, true);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array('debug' => true, 'message' => $whatsAppResult[1], 'payload_count' => 0, 'payloads' => array()), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (isset($_GET['action']) && $_GET['action'] === 'WhatsApp') {
+    $taskID = (int)($_GET['id'] ?? 0);
+    $whatsAppResult = sendTaskWhatsApp($conn, $taskID);
+    $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
+    header('location: tasks.php?action=view&id=' . $taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+    exit;
+}
+
 if(isset($_GET['act']) && $_GET['act']=="delete"){
 mysqli_query($conn, "DELETE FROM task_attachments WHERE taskID='".(int)$_GET['id']."'");
 mysqli_query($conn,"DELETE FROM tasks WHERE id='".$_GET['id']."'");
@@ -620,6 +687,7 @@ if(isset($_GET['action']) && $_GET['action']=="edit"){
     $orderID = '';
     $taskMessageID = '';
     $taskSMSID = '';
+    $taskWhatsAppTemplate = '';
     $subject = '';
     $priorityID = '';
     $assignTo = '';
@@ -658,6 +726,10 @@ if(isset($_GET['act']) && $_GET['act']=='1'){
 echo '<div class="alert alert-info"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>Email has been sent successfully</strong></div>';
 }else if(isset($_GET['act']) && $_GET['act']=='2'){
 echo '<div class="alert alert-info"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>SMS has been sent successfully</strong></div>';
+}else if(isset($_GET['act']) && in_array($_GET['act'], array('3','4'), true)){
+$notice = isset($_SESSION['taskWhatsAppNotice']) ? $_SESSION['taskWhatsAppNotice'] : 'WhatsApp send completed.';
+unset($_SESSION['taskWhatsAppNotice']);
+echo '<div class="alert alert-'.($_GET['act']==='3'?'success':'danger').'"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>'.htmlspecialchars($notice, ENT_QUOTES, 'UTF-8').'</strong></div>';
 }
 ?>
 <div class="row">
@@ -799,6 +871,10 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <label class="col-md-2 control-label" for="inputDefault">SMS</label>
 <div class="col-md-9"><?=(($taskSMSID)?'<b>Template Subject :- '.sendTemplateNm($taskSMSID).'</b> <br />':'').$taskSMS?></div>
 </div>
+<div class="form-group">
+<label class="col-md-2 control-label">WhatsApp template</label>
+<div class="col-md-9"><?=htmlspecialchars(isset($whatsAppTemplates[$taskWhatsAppTemplate]) ? $whatsAppTemplates[$taskWhatsAppTemplate]['name'] : '', ENT_QUOTES, 'UTF-8')?></div>
+</div>
 <?php if (!empty($taskFiles)): ?>
 <div class="form-group">
 <label class="col-md-2 control-label">Attachments</label>
@@ -811,10 +887,15 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <div class="paddingTxt"><?php $sendByAry = explode(",",$sendBy); ?>
 <input type="checkbox" name="sendBy[]" value="mail" <?=(in_array('mail',$sendByAry)?'checked="checked"':'');?> > Mail &nbsp;
 <input type="checkbox" name="sendBy[]" value="sms" <?=(in_array('sms',$sendByAry)?'checked="checked"':'');?> > SMS &nbsp;
+<input type="checkbox" name="sendBy[]" value="whatsapp" <?=(in_array('whatsapp',$sendByAry)?'checked="checked"':'');?> > WhatsApp &nbsp;
 <input type="checkbox" name="sendBy[]" value="immediate" <?=(in_array('immediate',$sendByAry)?'checked="checked"':'');?> > Immediate
 &nbsp;   &nbsp;
-<a onclick="return confirm('Are you sure you want send Email?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=mail&id=<?=$id?>" title="Send Email Notification"><b>Mail</b></a>  &nbsp;
-<a title="Send SMS Notification" onclick="return confirm('Are you sure you want send SMS?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=SMS&id=<?=$id?>"><b>SMS</b></a>
+<?php if (in_array('mail', $sendByAry, true)): ?><a onclick="return confirm('Are you sure you want send Email?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=mail&id=<?=$id?>" title="Send Email Notification"><b>Mail</b></a>  &nbsp;<?php endif; ?>
+<?php if (in_array('sms', $sendByAry, true)): ?><a title="Send SMS Notification" onclick="return confirm('Are you sure you want send SMS?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=SMS&id=<?=$id?>"><b>SMS</b></a><?php endif; ?>
+<?php if (in_array('whatsapp', $sendByAry, true)): ?>
+&nbsp;<a title="Preview WhatsApp payload without sending" onclick="return confirm('Preview payloads for all assigned contacts? No API messages will be sent.');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=WhatsAppPreview&amp;id=<?=(int)$id?>"><b>Preview Payload</b></a>
+&nbsp;<a title="Send WhatsApp template" onclick="return confirm('Send WhatsApp template to all assigned contacts?');" class="btn btn-success" href="<?=$siteUrl;?>tasks.php?action=WhatsApp&amp;id=<?=(int)$id?>"><b>WhatsApp</b></a>
+<?php endif; ?>
 
 </div>
 
@@ -881,6 +962,9 @@ $(".repeatDate").datepicker({todayHighlight:true,autoclose:true});
 <form class="form-horizontal form-bordered" method="post" enctype="multipart/form-data">
 <?php if (!empty($_GET['uploadError'])): ?>
 <div class="alert alert-danger"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><?=htmlspecialchars($_GET['uploadError'])?></div>
+<?php endif; ?>
+<?php if (isset($_GET['whatsappError'])): ?>
+<div class="alert alert-danger">Choose a configured WhatsApp template before enabling WhatsApp for this task.</div>
 <?php endif; ?>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Order *</label>
@@ -1066,6 +1150,17 @@ echo '<option value="'.$rowSMSTmp['id'].'" '.((($rowSMSTmp['id']==$taskSMSID) ||
 </div>
 </div>
 <div class="form-group">
+<label class="col-md-2 control-label" for="taskWhatsAppTemplate">WhatsApp Template</label>
+<div class="col-md-9">
+<select class="form-control" name="taskWhatsAppTemplate" id="taskWhatsAppTemplate">
+<option value="">- Select -</option>
+<?php foreach ($whatsAppTemplates as $templateLabel=>$templateConfig): ?>
+<option value="<?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?>" <?=((string)$taskWhatsAppTemplate===(string)$templateLabel?'selected':'')?>><?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?> (<?=htmlspecialchars($templateConfig['name'], ENT_QUOTES, 'UTF-8')?><?=whatsgTemplateSupportsMedia($templateConfig) ? ', image header' : '';?>)</option>
+<?php endforeach; ?>
+</select>
+<small class="text-muted">Templates come from approved WhatsApp templates. <a href="<?=$siteUrl;?>whatsapp_templates.php">Manage templates</a>.</small>
+</div>
+<div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Subject</label>
 <div class="col-md-9">
 <input type="text" class="form-control" name="subject" value="<?=$subject?>" id="subject" >
@@ -1110,7 +1205,6 @@ $('#taskMessage').code($('#taskMessage').code()+" "+$('#texteditor_selection opt
 <div class="col-md-9 taskMessageInfo">
 
 <textarea class="summernote" id="taskMessage" name="taskMessage" data-plugin-summernote data-plugin-options='{ "height": 200, "codemirror": { "theme": "ambiance" } }'><?php echo htmlspecialchars($taskMessage); ?></textarea>
-
 <br /><copyright><strong>Merge Fields : </strong>
 <style>
 
@@ -1240,6 +1334,7 @@ $('#sms_selection').change(function(){
 <div class="paddingTxt"><?php $sendByAry = explode(",",$sendBy); ?>
 <input type="checkbox" name="sendBy[]" value="mail" <?=(in_array('mail',$sendByAry)?'checked="checked"':'');?> > Mail &nbsp;
 <input type="checkbox" name="sendBy[]" value="sms" <?=(in_array('sms',$sendByAry)?'checked="checked"':'');?> > SMS &nbsp;
+<input type="checkbox" name="sendBy[]" value="whatsapp" <?=(in_array('whatsapp',$sendByAry)?'checked="checked"':'');?> > WhatsApp &nbsp;
 <?php
 if($_GET['action']=="add"){
 echo '<input type="checkbox" name="sendBy[]" value="immediate" '.((in_array('immediate',$sendByAry)?'checked="checked"':'')).' > Immediate';
@@ -1303,14 +1398,34 @@ $dtAry = explode(" ",currDateTimeGmt());
 <div class="form-group">
 <div class="col-md-6">
 <form class="form-horizontal form-bordered" method="get">
-<input type="text" style="width:80%;float:left" class="form-control" name="q" value="<?=(isset($_GET['q'])?$_GET['q']:'')?>" placeholder="Search" id="inputDefault"  >
-<input type="hidden" name="so" value="<?=(isset($_GET['so']) ? $_GET['so'] : '')?>" />
+<input type="text" style="width:80%;float:left" class="form-control" name="q" value="<?=htmlspecialchars(isset($_GET['q']) ? (string)$_GET['q'] : '', ENT_QUOTES, 'UTF-8')?>" placeholder="Search" id="inputDefault"  >
+<input type="hidden" name="status" value="<?=(isset($_GET['status']) ? htmlspecialchars($_GET['status'], ENT_QUOTES, 'UTF-8') : 'scheduled')?>" />
 <button class="btn btn-primary" name="submit" value="Submit">GO</button>
 </form> <span class="hintTxt">Search :-  Subject.</span>
 </div>
 <div class="col-md-6" align="right">
-<a href="<?=$siteUrl;?>tasks.php?so=pc" class="btn btn-default blue">Past Cron Job (<?=cronJobTotal($dtAry[0],'pc');?>)</a>
-<a href="<?=$siteUrl;?>tasks.php?so=fc" class="btn btn-default green">Future Cron Job (<?=cronJobTotal($dtAry[0],'fc');?>)</a>
+<?php
+$taskStatus = isset($_GET['status']) && in_array($_GET['status'], array('scheduled', 'overdue', 'first_sent', 'second_sent', 'all_sent'), true) ? $_GET['status'] : 'scheduled';
+$taskStatusConditions = array(
+    'scheduled' => "isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>='" . $dtAry[0] . "'",
+    'overdue' => "isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>'1970-01-01' AND dueDate<'" . $dtAry[0] . "'",
+    'first_sent' => "isSecondReminder='1' AND firstReminderSentAt IS NOT NULL AND secondReminderSentAt IS NULL",
+    'second_sent' => "isSecondReminder='1' AND secondReminderSentAt IS NOT NULL",
+    'all_sent' => "(firstReminderSentAt IS NOT NULL OR secondReminderSentAt IS NOT NULL OR isExpired<>'0')"
+);
+$taskStatusCounts = array();
+foreach ($taskStatusConditions as $statusKey => $statusCondition) {
+    $countResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE createdDate<>'' AND " . $statusCondition);
+    $countRow = $countResult ? mysqli_fetch_assoc($countResult) : array('total' => 0);
+    $taskStatusCounts[$statusKey] = (int)($countRow['total'] ?? 0);
+}
+$taskSearchQuery = isset($_GET['q']) && $_GET['q'] !== '' ? '&amp;q=' . rawurlencode($_GET['q']) : '';
+?>
+<a href="<?=$siteUrl;?>tasks.php?status=scheduled<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'scheduled' ? 'btn-primary' : 'btn-default';?>">Scheduled (<?=$taskStatusCounts['scheduled'];?>)</a>
+<a href="<?=$siteUrl;?>tasks.php?status=overdue<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'overdue' ? 'btn-danger' : 'btn-default';?>">Overdue / Not Sent (<?=$taskStatusCounts['overdue'];?>)</a>
+<a href="<?=$siteUrl;?>tasks.php?status=first_sent<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'first_sent' ? 'btn-primary' : 'btn-default';?>">1st Due Sent (<?=$taskStatusCounts['first_sent'];?>)</a>
+<a href="<?=$siteUrl;?>tasks.php?status=second_sent<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'second_sent' ? 'btn-primary' : 'btn-default';?>">2nd Due Sent (<?=$taskStatusCounts['second_sent'];?>)</a>
+<a href="<?=$siteUrl;?>tasks.php?status=all_sent<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'all_sent' ? 'btn-primary' : 'btn-default';?>">All Sent (<?=$taskStatusCounts['all_sent'];?>)</a>
 </div>
 </div>
 <div class="table-responsive">
@@ -1329,12 +1444,12 @@ $dtAry = explode(" ",currDateTimeGmt());
 </thead>
 <tbody>
 <?php
-$page_name="tasks.php?so=".(isset($_GET['so']) ? $_GET['so'] : '')."&q=".(isset($_GET['q']) ? $_GET['q'] : '');
+$page_name="tasks.php?status=".rawurlencode($taskStatus)."&q=".rawurlencode(isset($_GET['q']) ? $_GET['q'] : '');
 if(!isset($_REQUEST["start"])) {
 $start = 0;
 }
 else
-$start = $_REQUEST["start"];
+$start = max(0, (int)$_REQUEST["start"]);
 
 $eu = ($start - 0);
 $limit = 20;
@@ -1344,20 +1459,17 @@ $next = $eu + $limit;
 
 $sqlSrch = "";
 if(isset($_GET['q']) && $_GET['q']!=""){
-$sqlSrch = " and (subject LIKE '%".$_GET['q']."%') ";
+$taskSearch = mysqli_real_escape_string($conn, (string)$_GET['q']);
+$sqlSrch = " and (subject LIKE '%".$taskSearch."%') ";
 }
 
-$sqlSort = "";
-
-if(isset($_GET['so']) && $_GET['so']!=""){
-	if($_GET['so']=="fc"){
-		$sqlSort = " and dueDate>='".$dtAry[0]."' and isExpired='0' ";
-	}else if($_GET['so']=="pc"){
-		$sqlSort = " and dueDate<'".$dtAry[0]."' OR sendBy LIKE '%immediate%' ";
-	}
-}
-
-$sqlSeller = "SELECT id,subject,dueDate,repeatDate,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY id DESC limit $eu, $limit";
+$sqlSort = " and " . $taskStatusConditions[$taskStatus] . " ";
+$sqlOrder = "createdDate DESC,id DESC";
+if ($taskStatus === 'overdue') $sqlOrder = "dueDate DESC,id DESC";
+if ($taskStatus === 'first_sent') $sqlOrder = "firstReminderSentAt DESC,id DESC";
+if ($taskStatus === 'second_sent') $sqlOrder = "secondReminderSentAt DESC,id DESC";
+if ($taskStatus === 'all_sent') $sqlOrder = "COALESCE(secondReminderSentAt,firstReminderSentAt,createdDate) DESC,id DESC";
+$sqlSeller = "SELECT id,subject,dueDate,repeatDate,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY ".$sqlOrder." limit $eu, $limit";
 $sqltot = "SELECT id FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY id DESC ";
 
 $resultSeller= mysqli_query($conn,$sqlSeller);
@@ -1369,7 +1481,9 @@ $sno=$start;
 while($rows=mysqli_fetch_assoc($resultSeller)){
 $sno++;
 $taskStatusBadge = "<span class='label label-warning'>SCHEDULED</span>";
-if ((int)$rows['isSecondReminder'] === 1 && !empty($rows['secondReminderSentAt'])) {
+if ($rows['dueDate'] < $dtAry[0] && empty($rows['firstReminderSentAt']) && $rows['isExpired'] == '0') {
+    $taskStatusBadge = "<span class='label label-danger'>OVERDUE / NOT SENT</span>";
+} elseif ((int)$rows['isSecondReminder'] === 1 && !empty($rows['secondReminderSentAt'])) {
     $taskStatusBadge = "<span class='label label-success'>2nd Due Sent</span>";
 } elseif ((int)$rows['isSecondReminder'] === 1 && !empty($rows['firstReminderSentAt'])) {
     $taskStatusBadge = "<span class='label label-success'>1st Due Sent</span>";

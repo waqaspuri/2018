@@ -11,6 +11,9 @@
 # User and product uploads
 /img/*
 !/img/.gitkeep
+/product_photos/*
+!/product_photos/.gitkeep
+
 
 # Local editor and operating-system files
 .DS_Store

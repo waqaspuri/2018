@@ -1080,26 +1080,11 @@ if($action == "update" && (int)$orderID === 0){
 	$assignToAry = @explode(",",$assignTo);
 
 	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$orderID."'");
-	$rowOrdr = mysqli_fetch_assoc($sqlOrdr);
-	$customerAry[] = $rowOrdr['customerID'];
-	$customerAry[] = $rowOrdr['vendorID'];
-
-	$vendrCustmrNoID = "";
-	$sqlContactVndr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['vendorID']."'");
-	$numRowContactVndr = mysqli_num_rows($sqlContactVndr);
-	if($numRowContactVndr>0){
-		$rowConactVendr = mysqli_fetch_assoc($sqlContactVndr);
-		$customerAry[] = $rowConactVendr['id'];
-	}
-
-	$sqlContactCustmr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['customerID']."'");
-	$numRowContactCustmr = mysqli_num_rows($sqlContactCustmr);
-	if($numRowContactCustmr>0){
-		$rowConactCustmr = mysqli_fetch_assoc($sqlContactCustmr);
-		$customerAry[] = $rowConactCustmr['id'];
-	}
-
-	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers where (isOtherCustomer='1' OR id in (".@implode(",",$customerAry).")) ORDER BY type,applicantName ASC");
+	$rowOrdr = $sqlOrdr ? mysqli_fetch_assoc($sqlOrdr) : false;
+	$orderCustomerIDForContacts = $rowOrdr ? (int)$rowOrdr['customerID'] : 0;
+	$orderVendorIDForContacts = $rowOrdr ? (int)$rowOrdr['vendorID'] : 0;
+	$taskContactAccountIDs = $orderCustomerIDForContacts . ',' . $orderVendorIDForContacts;
+	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")) ORDER BY type,applicantName ASC");
 	$numRowOC = mysqli_num_rows($sqlOrderCustmr);
 	if($numRowOC>0){
 		while($rowOC = mysqli_fetch_assoc($sqlOrderCustmr)){
@@ -1110,27 +1095,13 @@ if($action == "update" && (int)$orderID === 0){
     $assignToAry = []; // ← ADD THIS LINE
 
 	if(isset($_GET['orderID']) && $_GET['orderID'] != ''){
-	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$_GET['orderID']."'");
-	$rowOrdr = mysqli_fetch_assoc($sqlOrdr);
-	$customerAry[] = $rowOrdr['customerID'];
-	$customerAry[] = $rowOrdr['vendorID'];
-
-	$vendrCustmrNoID = "";
-	$sqlContactVndr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['vendorID']."'");
-	$numRowContactVndr = mysqli_num_rows($sqlContactVndr);
-	if($numRowContactVndr>0){
-		$rowConactVendr = mysqli_fetch_assoc($sqlContactVndr);
-		$customerAry[] = $rowConactVendr['id'];
-	}
-
-	$sqlContactCustmr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['customerID']."'");
-	$numRowContactCustmr = mysqli_num_rows($sqlContactCustmr);
-	if($numRowContactCustmr>0){
-		$rowConactCustmr = mysqli_fetch_assoc($sqlContactCustmr);
-		$customerAry[] = $rowConactCustmr['id'];
-	}
-
-	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers where (isOtherCustomer='1' OR id in (".@implode(",",$customerAry).")) ORDER BY type,applicantName ASC");
+	$orderIDForContacts = (int)$_GET['orderID'];
+	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$orderIDForContacts."'");
+	$rowOrdr = $sqlOrdr ? mysqli_fetch_assoc($sqlOrdr) : false;
+	$orderCustomerIDForContacts = $rowOrdr ? (int)$rowOrdr['customerID'] : 0;
+	$orderVendorIDForContacts = $rowOrdr ? (int)$rowOrdr['vendorID'] : 0;
+	$taskContactAccountIDs = $orderCustomerIDForContacts . ',' . $orderVendorIDForContacts;
+	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")) ORDER BY type,applicantName ASC");
 	$numRowOC = mysqli_num_rows($sqlOrderCustmr);
 	if($numRowOC>0){
 		while($rowOC = mysqli_fetch_assoc($sqlOrderCustmr)){

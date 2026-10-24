@@ -15,23 +15,10 @@ if($_GET['act']=="urs"){
 		echo json_encode(array());
 		exit;
 	}
-	$customerAry[] = $rowOrdr['customerID'];
-	$customerAry[] = $rowOrdr['vendorID'];
-	
-	$vendrCustmrNoID = "";
-	$sqlContactVndr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['vendorID']."'");
-	$numRowContactVndr = $sqlContactVndr ? mysqli_num_rows($sqlContactVndr) : 0;
-	if($numRowContactVndr>0){
-		$rowConactVendr = mysqli_fetch_assoc($sqlContactVndr);
-		$customerAry[] = $rowConactVendr['id'];
-	}
-	$sqlContactCustmr = mysqli_query($conn,"SELECT id FROM customers where assignToID='".$rowOrdr['customerID']."'");
-	$numRowContactCustmr = $sqlContactCustmr ? mysqli_num_rows($sqlContactCustmr) : 0;
-	if($numRowContactCustmr>0){
-		$rowConactCustmr = mysqli_fetch_assoc($sqlContactCustmr);
-		$customerAry[] = $rowConactCustmr['id'];
-	}
-	$sql = mysqli_query($conn,"SELECT id,companyName,type FROM customers where (isOtherCustomer='1' OR id in (".@implode(",",$customerAry).")) ORDER BY type,applicantName ASC");
+	$customerID = (int)$rowOrdr['customerID'];
+	$vendorID = (int)$rowOrdr['vendorID'];
+	$accountIDs = $customerID . ',' . $vendorID;
+	$sql = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$accountIDs.") OR assignToID IN (".$accountIDs.")) ORDER BY type,applicantName ASC");
 	$contacts = array();
 	while ($sql && ($row = mysqli_fetch_assoc($sql))) {
 		$contacts[] = array(

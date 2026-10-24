@@ -924,7 +924,36 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <style type="text/css">.aa{color:#3C0 !important;}</style>
 <script type="text/javascript">
 $(document).ready(function(){
-$("#orderID").change(function(){ $.ajax({ url:"<?=$siteUrl;?>assignAjax.php?act=urs&id=" + $(this).val(),type: "GET",success: function(data){ var x = data;var optn=x.split(',~,'); var bb=''; bb+="<option value=''>- Select -</option>"; for(i=0;i<=optn.length-2;i++) { var optn2 = optn[i]; var hh2=optn2.split('||'); var hh=hh2[1].split('::'); bb+="<option "+hh2[0]+" value='"+hh[0]+"'>"+hh[1]+"</option>"; } $('#assignTo').html(bb); } }); });
+$("#orderID").change(function(){
+    var orderID = $(this).val();
+    var $assignTo = $('#assignTo');
+    $assignTo.empty().append(new Option('- Select -', ''));
+    if (!orderID) return;
+
+    $.ajax({
+        url: "<?=$siteUrl;?>assignAjax.php?act=urs&id=" + encodeURIComponent(orderID),
+        type: "GET",
+        dataType: "json",
+        success: function(contacts){
+            $assignTo.empty().append(new Option(contacts.length ? '- Select -' : 'No contacts available', ''));
+            $.each(contacts, function(_, contact){
+                var option = new Option(contact.label, contact.id);
+                if (parseInt(contact.type, 10) === 3) option.style.color = 'red';
+                $assignTo.append(option);
+            });
+        },
+        error: function(){
+            $assignTo.empty().append(new Option('Could not load contacts', ''));
+        }
+    });
+});
+$('#taskForm').on('submit', function(){
+    var dueDate = $.trim($(this).find('[name="dueDate"]').val() || '');
+    var repeatDate = $.trim($(this).find('[name="repeatDate"]').val() || '');
+    if (dueDate !== '' && repeatDate !== '' && dueDate === repeatDate) {
+        return confirm('Due Date and Repeat Date are the same. Do you want to continue?');
+    }
+});
 $("#taskSMSID").change(function(){ $('#saveSMSTemplate').prop('checked', false); $.ajax({ url:"<?=$siteUrl;?>assignAjax.php?act=smsTmp&id=" + $(this).val(),type: "GET",success: function(data){ $('#taskSMS').html(data); } }); });
 $("#taskMessageID").change(function(){ $('#saveEmailTemplate').prop('checked', false); $.ajax({ url:"<?=$siteUrl;?>assignAjax.php?act=mailTmp&id=" + $(this).val(),type: "GET",success: function(data){ var x = data; var optn=x.split(',~,');  $('#subject').val(optn[0]); $('.taskMessageInfo .note-editable').html(optn[1]); } }); });
 });
@@ -959,7 +988,7 @@ $(".repeatDate").datepicker({todayHighlight:true,autoclose:true});
 <h2 class="panel-title"><?=$hdTxt;?> Tasks</h2>
 </header>
 <div class="panel-body">
-<form class="form-horizontal form-bordered" method="post" enctype="multipart/form-data">
+<form id="taskForm" class="form-horizontal form-bordered" method="post" enctype="multipart/form-data">
 <?php if (!empty($_GET['uploadError'])): ?>
 <div class="alert alert-danger"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><?=htmlspecialchars($_GET['uploadError'])?></div>
 <?php endif; ?>

@@ -2,6 +2,19 @@
 require_once "include/sessionAdmin.php";
 require_once "include/configure.php";
 require_once "../php/lead_pipeline.php";
+
+function ordersPublicFileUrl($fileName)
+{
+    global $siteUrlMain;
+    return rtrim((string)$siteUrlMain, '/') . '/img/' . rawurlencode((string)$fileName);
+}
+
+function ordersCopyFileUrlButton($fileName)
+{
+    $url = htmlspecialchars(ordersPublicFileUrl($fileName), ENT_QUOTES, 'UTF-8');
+    return '<span class="order-file-url-copy" style="display:inline-block;max-width:100%;vertical-align:middle;"><input type="text" class="form-control input-sm order-file-url" readonly="readonly" value="' . $url . '" onclick="this.select();" aria-label="Public file URL" style="display:inline-block;width:260px;max-width:100%;vertical-align:middle;"><button type="button" class="btn btn-default btn-xs" onclick="copyOrderFileUrl(this);">Copy URL</button></span>';
+}
+
 ensureLeadPipelineSchema($conn);
 $modifiedDateColumn = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'modifiedDate'");
 if ($modifiedDateColumn && mysqli_num_rows($modifiedDateColumn) === 0) {
@@ -351,6 +364,41 @@ if(isset($_GET['action']) && $_GET['action'] == "edit"){
 }
 include "include/header.php";
 
+?>
+<script>
+function copyOrderFileUrl(button) {
+    var input = button.parentNode.querySelector('.order-file-url');
+    if (!input) return;
+
+    var selectUrl = function () {
+        input.focus();
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+    };
+    var showResult = function (copied) {
+        button.textContent = copied ? 'Copied' : 'Press Ctrl+C';
+        selectUrl();
+        window.setTimeout(function () { button.textContent = 'Copy URL'; }, 2000);
+    };
+
+    selectUrl();
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        navigator.clipboard.writeText(input.value).then(function () {
+            showResult(true);
+        }).catch(function () {
+            var copied = false;
+            try { copied = document.execCommand('copy'); } catch (error) {}
+            showResult(copied);
+        });
+    } else {
+        var copied = false;
+        try { copied = document.execCommand('copy'); } catch (error) {}
+        showResult(copied);
+    }
+}
+</script>
+<?php
+
 if(isset($_GET['action']) && $_GET['action'] == "view"){
     $sqlEdit = mysqli_query($conn,"SELECT * FROM orders WHERE id='" . $_GET['id'] . "'");
     $rowsEdit = mysqli_fetch_assoc($sqlEdit);
@@ -427,7 +475,7 @@ if(isset($_GET['action']) && $_GET['action'] == "view"){
 <header class="panel-heading">
 <div class="panel-actions">
 <a href="<?=$siteUrl;?>orders.php?action=edit&id=<?=$id?>"><b>Edit</b></a> |
-<a style="margin:0 6px;color:#a94442" title="Delete this order" aria-label="Delete this order" onclick="return confirm('Delete this order and its related notes, tasks, and files? This cannot be undone.');" href="<?=$siteUrl;?>orders.php?act=delete&amp;id=<?=(int)$id?>">Delete</a> |
+<a style="margin:0 6px;color:#a94442" title="Delete this order" aria-label="Delete this order" onclick="if (!confirm('WARNING: This permanently deletes the order and its related notes, tasks, and files. This cannot be undone.')) return false; if (prompt('Type DELETE to confirm order deletion:') !== 'DELETE') { alert('Order deletion cancelled.'); return false; } return true;" href="<?=$siteUrl;?>orders.php?act=delete&amp;id=<?=(int)$id?>">Delete</a> |
 <a href="<?=$siteUrl;?>orders.php"><b>Back</b></a>
 </div>
 <h2 class="panel-title">View Orders - <?=statusNm($statusID)?></h2>
@@ -657,10 +705,11 @@ div#result {
 <?php
 $sno=1;
 if($orderImg!=""){
+$copyFileUrlButton = ordersCopyFileUrlButton($orderImg);
 echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td>'.(($orderImgNm!="")?$orderImgNm:$orderImg).'</td>
-<td><a title="Download this image" href="orders.php?action=download&ordImg='.$orderImg.'"><i class="fa fa-download"></i> Download</a></td>
+<td><a title="Download this image" href="orders.php?action=download&ordImg='.$orderImg.'"><i class="fa fa-download"></i> Download</a> '.$copyFileUrlButton.'</td>
 </tr>';
 }
 $sqlImg2 = mysqli_query($conn,"SELECT * FROM  order_images WHERE isOrder='1' AND orderID='" . $_GET['id'] . "'");
@@ -668,10 +717,11 @@ $numRowImgs2 = mysqli_num_rows($sqlImg2);
 if($numRowImgs2>0){
 while($rowImg2 = mysqli_fetch_assoc($sqlImg2)){
 $sno++;
+$copyFileUrlButton = ordersCopyFileUrlButton($rowImg2['orderImg']);
 echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td>'.(($rowImg2['fileName'])?$rowImg2['fileName']:$rowImg2['orderImg']).'</td>
-<td><a title="Download this Doc" href="orders.php?action=download&id='.$rowImg2['id'].'"><i class="fa fa-download"></i> Download</a></td>
+<td><a title="Download this Doc" href="orders.php?action=download&id='.$rowImg2['id'].'"><i class="fa fa-download"></i> Download</a> '.$copyFileUrlButton.'</td>
 </tr>';
 }
 }
@@ -769,10 +819,11 @@ echo '<tr>
 <?php
 $sno=1;
 if($shippingDocImg!=""){
+$copyFileUrlButton = ordersCopyFileUrlButton($shippingDocImg);
 echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td>'.(($shippingDocImgNm!="")?$shippingDocImgNm:$shippingDocImg).'</td>
-<td><a title="Download this image" href="orders.php?action=download&ordImg='.$shippingDocImg.'"><i class="fa fa-download"></i> Download</a></td>
+<td><a title="Download this image" href="orders.php?action=download&ordImg='.$shippingDocImg.'"><i class="fa fa-download"></i> Download</a> '.$copyFileUrlButton.'</td>
 </tr>';
 }
 $sqlImg2 = mysqli_query($conn,"SELECT * FROM  order_images WHERE isOrder='0' AND orderID='" . $_GET['id'] . "'");
@@ -780,10 +831,11 @@ $numRowImgs2 = mysqli_num_rows($sqlImg2);
 if($numRowImgs2>0){
 while($rowImg2 = mysqli_fetch_assoc($sqlImg2)){
 $sno++;
+$copyFileUrlButton = ordersCopyFileUrlButton($rowImg2['orderImg']);
 echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td>'.(($rowImg2['fileName'])?$rowImg2['fileName']:$rowImg2['orderImg']).'</td>
-<td><a title="Download this Doc" href="orders.php?action=download&id='.$rowImg2['id'].'"><i class="fa fa-download"></i> Download</a></td>
+<td><a title="Download this Doc" href="orders.php?action=download&id='.$rowImg2['id'].'"><i class="fa fa-download"></i> Download</a> '.$copyFileUrlButton.'</td>
 </tr>';
 }
 }
@@ -1205,10 +1257,11 @@ while($rowsStus = mysqli_fetch_assoc($sqlStus)){
 $sno=1;
 if ($action == 'update') {
     if($orderImg!=""){
+    $copyFileUrlButton = ordersCopyFileUrlButton($orderImg);
     echo '<tr>
     <td>&nbsp; '.$sno.'</td>
     <td><a href="'.$siteUrlMain."img/" . $orderImg.'" target="_blank" >'.(($orderImgNm)?$orderImgNm:$orderImg).'</a></td>
-    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$orderImg.'"><i class="fa fa-times delIcon"></i> Delete</a></td>
+    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$orderImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
     </tr>';
     }
     $sqlImg = mysqli_query($conn,"SELECT * FROM order_images WHERE isOrder='1' AND orderID='" . $id . "'");
@@ -1216,10 +1269,11 @@ if ($action == 'update') {
     if($numRowImgs>0){
         while($rowImg = mysqli_fetch_assoc($sqlImg)){
             $sno++;
+            $copyFileUrlButton = ordersCopyFileUrlButton($rowImg['orderImg']);
             echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td><a href="'.$siteUrlMain."img/" . $rowImg['orderImg'].'" target="_blank" >'.(($rowImg['fileName'])?$rowImg['fileName']:$rowImg['orderImg']).'</a></td>
-<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg['id'].'"><i class="fa fa-times delIcon"></i> Delete</a></td>
+<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
 </tr>';
         }
     }
@@ -1322,10 +1376,11 @@ echo ($shipmentPlanDate!="")?viewDateFormat($shipmentPlanDate):'';
 $sno=1;
 if ($action == 'update') {
     if($shippingDocImg!=""){
+    $copyFileUrlButton = ordersCopyFileUrlButton($shippingDocImg);
     echo '<tr>
     <td>&nbsp; '.$sno.'</td>
     <td><a href="'.$siteUrlMain."img/" . $shippingDocImg.'" target="_blank" >'.(($shippingDocImgNm)?$shippingDocImgNm:$shippingDocImg).'</a></td>
-    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$shippingDocImg.'"><i class="fa fa-times delIcon"></i> Delete</a></td>
+    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$shippingDocImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
     </tr>';
     }
     $sqlImg2 = mysqli_query($conn,"SELECT * FROM order_images WHERE isOrder='0' AND orderID='" . $id . "'");
@@ -1333,10 +1388,11 @@ if ($action == 'update') {
     if($numRowImgs2>0){
         while($rowImg2 = mysqli_fetch_assoc($sqlImg2)){
             $sno++;
+            $copyFileUrlButton = ordersCopyFileUrlButton($rowImg2['orderImg']);
             echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td><a href="'.$siteUrlMain."img/" . $rowImg2['orderImg'].'" target="_blank" >'.(($rowImg2['fileName'])?$rowImg2['fileName']:$rowImg2['orderImg']).'</a></td>
-<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg2['id'].'"><i class="fa fa-times delIcon"></i> Delete</a></td>
+<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg2['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
 </tr>';
         }
     }

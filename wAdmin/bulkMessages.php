@@ -460,8 +460,6 @@ include "include/header.php";
 <h5><?=htmlspecialchars($payloadPreview['recipient'], ENT_QUOTES, 'UTF-8');?></h5>
 <strong>JSON payload</strong>
 <pre><?=htmlspecialchars(json_encode($payloadPreview['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');?></pre>
-<strong>cURL command</strong> <small class="text-muted">Replace the two credential placeholders before running.</small>
-<pre><?=htmlspecialchars(bulkWhatsAppCurlPreview($payloadPreview['body']), ENT_QUOTES, 'UTF-8');?></pre>
 <?php endforeach; ?>
 </div></div>
 <?php endif; ?>

@@ -85,18 +85,25 @@ include 'include/header.php';
 .order-timeline-customer{margin:0;color:#687783;overflow-wrap:anywhere}
 html.dark .order-timeline-card{background:#282d36;border-color:#21262d}
 html.dark .order-timeline-date,html.dark .order-timeline-customer{color:#b8bec8}
+.timeline-filters{margin:0 0 18px}
+.timeline-filters .form-group{margin:0 0 15px}
+.timeline-filters label{display:block;margin-bottom:5px}
+.timeline-filters .form-control{width:100%}
+.timeline-filter-actions{display:flex;justify-content:flex-end;gap:8px;padding:0}
 @media(max-width:600px){.order-timeline{margin-left:2px;padding-left:14px}.order-timeline-item{padding-left:12px}.order-timeline-item:before{left:-20px}}
 </style>
 <p>Review the actual order history for a product or customer. Each timeline item is one order; no reorder prediction is applied.</p>
-<form method="get" class="form-inline" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px">
+<form method="get" class="timeline-filters">
 <input type="hidden" name="status_filter" value="1">
-<div class="form-group"><label for="timeline-product">Product</label><select class="form-control" id="timeline-product" name="product"><option value="0">All products</option><?php while ($products && ($product=mysqli_fetch_assoc($products))): ?><option value="<?=(int)$product['id']?>" <?=$productID===(int)$product['id']?'selected':''?>><?=reorderEscape($product['prodName'])?></option><?php endwhile; ?></select></div>
-<div class="form-group"><label for="timeline-customer">Customer</label><select class="form-control" id="timeline-customer" name="customer"><option value="0">All customers</option><?php while ($customers && ($customer=mysqli_fetch_assoc($customers))): ?><option value="<?=(int)$customer['id']?>" <?=$customerID===(int)$customer['id']?'selected':''?>><?=reorderEscape($customer['companyName'] ?: $customer['applicantName'])?></option><?php endwhile; ?></select></div>
-<div class="form-group"><label for="timeline-history">Date range</label><select class="form-control" id="timeline-history" name="history"><?php foreach ($historyOptions as $value=>$label): ?><option value="<?=reorderEscape($value)?>" <?=$history===$value?'selected':''?>><?=reorderEscape($label)?></option><?php endforeach; ?></select></div>
-<div class="form-group"><label for="timeline-sort">Sort</label><select class="form-control" id="timeline-sort" name="sort"><option value="newest" <?=$sort==='newest'?'selected':''?>>Newest first</option><option value="oldest" <?=$sort==='oldest'?'selected':''?>>Oldest first</option></select></div>
-<div class="form-group"><label for="timeline-search">Search</label><input class="form-control" id="timeline-search" name="q" value="<?=reorderEscape($search)?>" placeholder="Customer or product"></div>
-<div class="form-group"><label for="timeline-statuses">Order status</label><select class="form-control" id="timeline-statuses" name="statuses[]" multiple size="4" style="min-width:190px"><?php foreach ($statuses as $statusID=>$statusName): ?><option value="<?=$statusID?>" <?=in_array($statusID,$selectedStatuses,true)?'selected':''?>><?=reorderEscape($statusName)?></option><?php endforeach; ?></select></div>
-<button class="btn btn-primary" type="submit">Show timeline</button><a class="btn btn-default" href="customer_reorders.php">Reset</a>
+<div class="row">
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-product">Product</label><select class="form-control" id="timeline-product" name="product"><option value="0">All products</option><?php while ($products && ($product=mysqli_fetch_assoc($products))): ?><option value="<?=(int)$product['id']?>" <?=$productID===(int)$product['id']?'selected':''?>><?=reorderEscape($product['prodName'])?></option><?php endwhile; ?></select></div></div>
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-customer">Customer</label><select class="form-control" id="timeline-customer" name="customer"><option value="0">All customers</option><?php while ($customers && ($customer=mysqli_fetch_assoc($customers))): ?><option value="<?=(int)$customer['id']?>" <?=$customerID===(int)$customer['id']?'selected':''?>><?=reorderEscape($customer['companyName'] ?: $customer['applicantName'])?></option><?php endwhile; ?></select></div></div>
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-history">Date range</label><select class="form-control" id="timeline-history" name="history"><?php foreach ($historyOptions as $value=>$label): ?><option value="<?=reorderEscape($value)?>" <?=$history===$value?'selected':''?>><?=reorderEscape($label)?></option><?php endforeach; ?></select></div></div>
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-sort">Sort</label><select class="form-control" id="timeline-sort" name="sort"><option value="newest" <?=$sort==='newest'?'selected':''?>>Newest first</option><option value="oldest" <?=$sort==='oldest'?'selected':''?>>Oldest first</option></select></div></div>
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-search">Search</label><input class="form-control" id="timeline-search" name="q" value="<?=reorderEscape($search)?>" placeholder="Customer or product"></div></div>
+<div class="col-md-4 col-sm-6"><div class="form-group"><label for="timeline-statuses">Order status <small class="text-muted">(use Ctrl/Cmd to select multiple)</small></label><select class="form-control" id="timeline-statuses" name="statuses[]" multiple size="4"><?php foreach ($statuses as $statusID=>$statusName): ?><option value="<?=$statusID?>" <?=in_array($statusID,$selectedStatuses,true)?'selected':''?>><?=reorderEscape($statusName)?></option><?php endforeach; ?></select></div></div>
+</div>
+<div class="timeline-filter-actions"><button class="btn btn-primary" type="submit">Show timeline</button><a class="btn btn-default" href="customer_reorders.php">Reset</a></div>
 </form>
 <p class="text-muted"><small>Dates use the order's last modified date, then document date, then creation date. Orders edited later may therefore appear later in the timeline.</small></p>
 <?php if (!$selectedStatuses): ?><div class="alert alert-info">Select at least one order status to show orders.</div><?php endif; ?>

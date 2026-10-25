@@ -26,4 +26,5 @@
 *.zip
 *.bak
 *.tmp
+*.log
 *~

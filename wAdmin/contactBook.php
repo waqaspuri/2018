@@ -19,6 +19,95 @@ $rowsEdit = array(
 'isOtherCustomer' => '0'
 );
 
+// Download a ready-to-fill CSV template for the contact book.
+if (isset($_GET['download']) && $_GET['download'] === 'sample') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="contact-import-sample.csv"');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, array('Contact Person', 'Mobile Number', 'Company Name', 'Email', 'Phone Number', 'Address', 'City', 'Country', 'Information'));
+    fputcsv($output, array('Ali Khan', '+923001234567', 'Example Company', 'ali@example.com', '', 'Street 1', 'Karachi', 'Pakistan', ''));
+    fclose($output);
+    exit;
+}
+
+// Import contacts from a CSV file. Blank optional text fields are stored empty;
+// Assign To uses the existing unassigned integer sentinel (0); Enable is off.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['importContacts'])) {
+    $importSummary = array('added' => 0, 'skipped' => 0, 'errors' => array());
+    if (!isset($_FILES['contactCsv']) || !is_uploaded_file($_FILES['contactCsv']['tmp_name']) || $_FILES['contactCsv']['error'] !== UPLOAD_ERR_OK) {
+        $importSummary['errors'][] = 'Choose a valid CSV file to import.';
+    } else {
+        $csv = fopen($_FILES['contactCsv']['tmp_name'], 'r');
+        $headers = $csv ? fgetcsv($csv) : false;
+        $normalizeHeader = static function ($value) {
+            return strtolower(preg_replace('/[^a-z0-9]/i', '', trim((string)$value)));
+        };
+        $headerMap = array();
+        if (is_array($headers)) {
+            foreach ($headers as $index => $header) {
+                $headerMap[$normalizeHeader($header)] = $index;
+            }
+        }
+        $aliases = array(
+            'applicantName' => array('contactperson', 'applicantname', 'name'),
+            'mobileNumber' => array('mobilenumber', 'mobile', 'whatsapp'),
+            'companyName' => array('companyname', 'company'),
+            'email' => array('email'), 'phoneNumber' => array('phonenumber', 'phone'),
+            'address' => array('address'), 'city' => array('city'), 'country' => array('country'),
+            'moreInfo' => array('information', 'moreinfo', 'notes')
+        );
+        $columnIndexes = array();
+        foreach ($aliases as $column => $names) {
+            foreach ($names as $name) {
+                if (array_key_exists($name, $headerMap)) { $columnIndexes[$column] = $headerMap[$name]; break; }
+            }
+        }
+        if (!isset($columnIndexes['applicantName'], $columnIndexes['mobileNumber'])) {
+            $importSummary['errors'][] = 'CSV headers must include Contact Person and Mobile Number.';
+        } else {
+            $line = 1;
+            while (($cells = fgetcsv($csv)) !== false) {
+                $line++;
+                $row = array();
+                foreach ($aliases as $column => $_names) {
+                    $row[$column] = isset($columnIndexes[$column]) ? trim((string)($cells[$columnIndexes[$column]] ?? '')) : '';
+                }
+                if (implode('', $row) === '') { continue; }
+                if ($row['applicantName'] === '' || !preg_match('/^\\+923[0-9]{9}$/', $row['mobileNumber'])) {
+                    $importSummary['skipped']++;
+                    if (count($importSummary['errors']) < 10) {
+                        $importSummary['errors'][] = 'Row ' . $line . ' skipped: Contact Person is required and Mobile Number must be E.164 (example: +923001234567).';
+                    }
+                    continue;
+                }
+                $dbColumns = array('bankName','bankBranch','isOtherCustomer','assignToID','type','applicantName','companyName','mobileNumber','email','email2','phoneNumber','isEnableEmail','address','city','country','appAddress','appCity','appCountry','appSwiftCode','appIBAN','appAccountNo','moreInfo','createdDate');
+                $data = array(
+                    'bankName' => '', 'bankBranch' => '', 'isOtherCustomer' => '0', 'assignToID' => '0', 'type' => '3',
+                    'applicantName' => $row['applicantName'], 'companyName' => $row['companyName'],
+                    'mobileNumber' => $row['mobileNumber'], 'email' => $row['email'], 'email2' => '',
+                    'phoneNumber' => $row['phoneNumber'], 'isEnableEmail' => '0',
+                    'address' => $row['address'], 'city' => $row['city'], 'country' => $row['country'],
+                    'appAddress' => '', 'appCity' => '', 'appCountry' => '', 'appSwiftCode' => '', 'appIBAN' => '',
+                    'appAccountNo' => '', 'moreInfo' => $row['moreInfo'], 'createdDate' => currDateTimeGmt()
+                );
+                $sqlValues = array();
+                foreach ($dbColumns as $column) {
+                    $value = $data[$column];
+                    $sqlValues[] = $value === null ? 'NULL' : "'" . mysqli_real_escape_string($conn, (string)$value) . "'";
+                }
+                try {
+                    mysqli_query($conn, 'INSERT INTO customers (' . implode(',', $dbColumns) . ') VALUES (' . implode(',', $sqlValues) . ')');
+                    $importSummary['added']++;
+                } catch (mysqli_sql_exception $exception) {
+                    $importSummary['skipped']++;
+                    if (count($importSummary['errors']) < 10) { $importSummary['errors'][] = 'Row ' . $line . ' could not be saved: ' . $exception->getMessage(); }
+                }
+            }
+        }
+        if ($csv) { fclose($csv); }
+    }
+}
+
 if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="add"){
 mysqli_query($conn,"INSERT INTO customers (bankName,bankBranch,isOtherCustomer,assignToID,type,applicantName,companyName,mobileNumber,email,email2,phoneNumber,isEnableEmail,address,city,country,appAddress,appCity,appCountry,appSwiftCode,appIBAN,appAccountNo,moreInfo,createdDate) VALUES ('','','".mysqli_real_escape_string($conn,($_POST['isOtherCustomer'] ?? '0'))."','".mysqli_real_escape_string($conn,($_POST['assignToID'] ?? ''))."','3','".mysqli_real_escape_string($conn,($_POST['applicantName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['companyName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['mobileNumber'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['phoneNumber'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['isEnableEmail'] ?? '0'))."','".mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."','','','','','','','".mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."','".currDateTimeGmt()."')");
@@ -134,7 +223,7 @@ extract($rowsEdit);
 </div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Assign To </label>
-<div class="col-md-9"><?=assignToName($assignToID)?></div>
+<div class="col-md-9"><?=((string)$assignToID === '0' || $assignToID === '') ? 'Unassigned' : assignToName($assignToID)?></div>
 </div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Information </label>
@@ -306,6 +395,12 @@ echo '<option value="'.$rowsVC['id'].'" '.(($rowsVC['id']==$assignToID)?'selecte
 </ol>
 <a >&nbsp;</a></div>
 </header>
+<?php if (isset($importSummary)): ?>
+<div class="alert alert-info">
+<strong>Import finished:</strong> <?= (int)$importSummary['added']; ?> added, <?= (int)$importSummary['skipped']; ?> skipped.
+<?php if (!empty($importSummary['errors'])): ?><ul><?php foreach ($importSummary['errors'] as $importError): ?><li><?=htmlspecialchars($importError, ENT_QUOTES, 'UTF-8');?></li><?php endforeach; ?></ul><?php endif; ?>
+</div>
+<?php endif; ?>
 <?php
 if(isset($_GET['act'])){
 $msgTxt='';
@@ -327,6 +422,15 @@ echo '<div class="alert alert-info"><button type="button" class="close" data-dis
 <h2 class="panel-title">Manage Contact Book</h2>
 </header>
 <div class="panel-body">
+<div class="well">
+<h4>Import contacts from CSV</h4>
+<p>Required columns: <strong>Contact Person</strong> and <strong>Mobile Number</strong>. Mobile numbers must use Pakistan E.164 format, for example <code>+923001234567</code>. Rows missing either required value, or with an invalid mobile number, are skipped. Optional blank cells are left empty. Others Task Assign defaults to No; Assign To defaults to unassigned and Enable defaults to Off.</p>
+<p><a class="btn btn-default" href="<?=$siteUrl;?>contactBook.php?download=sample">Download sample CSV</a></p>
+<form method="post" enctype="multipart/form-data" class="form-inline">
+<input type="file" name="contactCsv" accept=".csv,text/csv" required>
+<button type="submit" name="importContacts" value="1" class="btn btn-primary">Import CSV</button>
+</form>
+</div>
 <div class="form-group">
 <div class="col-md-6">
 <form class="form-horizontal form-bordered" method="get">

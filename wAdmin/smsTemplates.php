@@ -194,6 +194,10 @@ small {
    <th>Payment Terms <small> (returns integer)</small></th>
     <td>{payment_terms}</td>
   </tr>
+  <tr>
+    <th>Shipping Info / Tracking Number</th>
+    <td>{shipping_info}</td>
+  </tr>
 </table>
 </copyright><br />
 </div>

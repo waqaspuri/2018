@@ -22,7 +22,7 @@ function whatsgTaskMergeTagNames()
         'unit_price', 'quantity', 'total_amount', 'order_transport', 'order_packaging',
         'product_name', 'document_order_number', 'proforma_invoice', 'second_email',
         'arrival_date', 'departure_date', 'latest_date_shipment', 'document_bill_no',
-        'doucment_expiry_date', 'arrival_new_date', 'payment_terms', 'applicant_name',
+        'doucment_expiry_date', 'arrival_new_date', 'payment_terms', 'shipping_info', 'applicant_name',
         'company_name', 'mobile_number'
     );
 }
@@ -89,7 +89,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         return array(false, 'PHP cURL is not available.');
     }
 
-    $taskResult = mysqli_query($conn, "SELECT t.assignTo,t.sendBy,t.taskWhatsAppTemplate,t.attachmentFile,t.attachmentName,o.unitPrice,o.quantity,o.totalAmt,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName
+    $taskResult = mysqli_query($conn, "SELECT t.assignTo,t.sendBy,t.taskWhatsAppTemplate,t.attachmentFile,t.attachmentName,o.unitPrice,o.quantity,o.totalAmt,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName
         FROM tasks t LEFT JOIN orders o ON o.id=t.orderID LEFT JOIN products p ON p.id=o.productID WHERE t.id=" . (int)$taskID . " LIMIT 1");
     $task = $taskResult ? mysqli_fetch_assoc($taskResult) : false;
     if (!$task) {
@@ -118,7 +118,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         'latest_date_shipment' => !empty($task['latestDateShipment']) ? viewDateFormat($task['latestDateShipment']) : '',
         'document_bill_no' => $task['billNo'] ?? '', 'doucment_expiry_date' => !empty($task['expiryDate']) ? viewDateFormat($task['expiryDate']) : '',
         'arrival_new_date' => !empty($task['newETA']) ? viewDateFormat($task['newETA']) : '',
-        'payment_terms' => $task['paymentTerms'] ?? ''
+        'payment_terms' => $task['paymentTerms'] ?? '', 'shipping_info' => $task['shippingDocInfo'] ?? ''
     );
     $customerIDs = array_filter(array_map('intval', explode(',', (string)$task['assignTo'])));
     if (!$customerIDs) {

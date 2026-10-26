@@ -45,7 +45,7 @@ if ($numRowsExp > 0) {
 		}
 		if ($rowsEp['assignTo'] != "") {
 			//Order Info
-			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
+			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
 			//$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,p.prodName,o.documentOrderNo,o.invoiceNo FROM orders as o,products as p WHERE p.id=o.productID AND o.id='".$rowsEp['orderID']."' ");
 			$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
 			if (!$rowsOrdrInfo) {
@@ -94,7 +94,8 @@ if ($numRowsExp > 0) {
 								'document_bill_no' => $rowsOrdrInfo['billNo'],
 								'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 								'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-								'payment_terms' => $rowsOrdrInfo['paymentTerms']
+								'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+								'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
 							);
 
 
@@ -173,7 +174,8 @@ if ($numRowsExp > 0) {
 								'document_bill_no' => $rowsOrdrInfo['billNo'],
 								'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 								'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-								'payment_terms' => $rowsOrdrInfo['paymentTerms']
+								'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+								'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
 							);
 
 							$search = array();
@@ -268,7 +270,7 @@ if ($numRowsExp > 0) {
 		}
 		if ($rowsEp['assignTo'] != "") {
 			//Order Info
-			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
+			$sqlOrdrInfo = mysqli_query($conn, "SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='" . $rowsEp['orderID'] . "' ");
 			$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
 			if (!$rowsOrdrInfo) {
 				$rowsOrdrInfo = array_fill_keys(array('unitPrice','quantity','totalAmt','orderDelievery','orderPackaging','invoiceNo','eta','dta','newETA','documentDate','expiryDate','paymentTerms','latestDateShipment','documentOrderNo','billNo','prodName','email2'), '');
@@ -291,7 +293,8 @@ if ($numRowsExp > 0) {
 				'document_bill_no' => $rowsOrdrInfo['billNo'],
 				'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 				'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-				'payment_terms' => $rowsOrdrInfo['paymentTerms']
+				'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+				'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
 			);
 
 
@@ -338,7 +341,8 @@ if ($numRowsExp > 0) {
 								'document_bill_no' => $rowsOrdrInfo['billNo'],
 								'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 								'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-								'payment_terms' => $rowsOrdrInfo['paymentTerms']
+								'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+								'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
 							);
 
 
@@ -421,7 +425,8 @@ if ($numRowsExp > 0) {
 								'document_bill_no' => $rowsOrdrInfo['billNo'],
 								'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 								'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-								'payment_terms' => $rowsOrdrInfo['paymentTerms']
+								'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+								'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
 							);
 
 							$search = array();

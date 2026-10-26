@@ -192,7 +192,7 @@ if(in_array('immediate', $_POST['sendBy'])){
 
 			if($rowsEp['assignTo']!=""){
 				//Order Info
-							$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
+							$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 
 				//$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.documentOrderNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='".$rowsEp['orderID']."' ");
 				$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
@@ -232,7 +232,8 @@ if(in_array('immediate', $_POST['sendBy'])){
 							'document_bill_no' => $rowsOrdrInfo['billNo'],
 							'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 							'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-							'payment_terms' => $rowsOrdrInfo['paymentTerms']);
+							'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+							'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? ''));
 
 
 
@@ -285,7 +286,7 @@ if(in_array('immediate', $_POST['sendBy'])){
 
 		if($rowsEp['assignTo']!=""){
 			//Order Info
-		$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
+		$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 			$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
 			$assignToAry = @explode(",",$rowsEp['assignTo']);
 			if(count($assignToAry)>0){
@@ -313,7 +314,8 @@ if(in_array('immediate', $_POST['sendBy'])){
 							'document_bill_no' => $rowsOrdrInfo['billNo'],
 							'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 							'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-							'payment_terms' => $rowsOrdrInfo['paymentTerms']);
+							'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+							'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? ''));
 
 							$search = array();
 							$replace = array();
@@ -420,7 +422,7 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
 
             if($rowsEp['assignTo'] != ""){
 
-                $sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName,c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."'");
+                $sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName,c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."'");
                 $rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo) ?: array('unitPrice'=>'','quantity'=>'','totalAmt'=>'','orderDelievery'=>'','orderPackaging'=>'','prodName'=>'','documentOrderNo'=>'','invoiceNo'=>'','email2'=>'','eta'=>'','dta'=>'','latestDateShipment'=>'','billNo'=>'','expiryDate'=>'','newETA'=>'','paymentTerms'=>'');
                 $assignToAry  = explode(",", $rowsEp['assignTo']);
 
@@ -459,7 +461,8 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                         'document_bill_no'      => $rowsOrdrInfo['billNo'],
                         'doucment_expiry_date'  => viewDateFormat($rowsOrdrInfo['expiryDate']),
                         'arrival_new_date'      => viewDateFormat($rowsOrdrInfo['newETA']),
-                        'payment_terms'         => $rowsOrdrInfo['paymentTerms']
+                        'payment_terms'         => $rowsOrdrInfo['paymentTerms'],
+                        'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? '')
                     );
 
                     $search = $replace = array();
@@ -505,7 +508,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 	if($rowsEp['assignTo']!=""){
 		//Order Info
 
-				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
+				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
 		$assignToAry = @explode(",",$rowsEp['assignTo']);
 		if(count($assignToAry)>0){
@@ -532,7 +535,8 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 							'document_bill_no' => $rowsOrdrInfo['billNo'],
 							'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 							'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-							'payment_terms' => $rowsOrdrInfo['paymentTerms']);
+							'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+							'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? ''));
 
 							$search = array();
 							$replace = array();
@@ -701,7 +705,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 	if($rowsEp['assignTo']!=""){
 		//Order Info
 
-				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
+				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo) ?: $rowsOrdrInfo;
 		$assignToAry = @explode(",",$rowsEp['assignTo']);
 
@@ -731,7 +735,8 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 							'document_bill_no' => $rowsOrdrInfo['billNo'],
 							'doucment_expiry_date' => viewDateFormat($rowsOrdrInfo['expiryDate']),
 							'arrival_new_date' => viewDateFormat($rowsOrdrInfo['newETA']),
-							'payment_terms' => $rowsOrdrInfo['paymentTerms']);
+							'payment_terms' => $rowsOrdrInfo['paymentTerms'],
+							'shipping_info' => ($rowsOrdrInfo['shippingDocInfo'] ?? ''));
 
 							$search = array();
 							$replace = array();
@@ -1046,6 +1051,7 @@ echo '<option value="'.$rowSMSTmp['id'].'" '.((($rowSMSTmp['id']==$taskSMSID) ||
     <option value="{doucment_expiry_date}">{doucment_expiry_date}</option>
 	<option value="{arrival_new_date}">{arrival_new_date}</option>
     <option value="{payment_terms}">{payment_terms}</option>
+    <option value="{shipping_info}">{shipping_info}</option>
 
 </select>
 <script>
@@ -1138,6 +1144,10 @@ small {
    <th>Payment Terms <small> (returns integer)</small></th>
     <td>{payment_terms}</td>
   </tr>
+  <tr>
+    <th>Shipping Info / Tracking Number</th>
+    <td>{shipping_info}</td>
+  </tr>
 </table>
 </copyright><br />
 </div>
@@ -1177,6 +1187,7 @@ small {
     <option value="{doucment_expiry_date}">{doucment_expiry_date}</option>
 	<option value="{arrival_new_date}">{arrival_new_date}</option>
     <option value="{payment_terms}">{payment_terms}</option>
+    <option value="{shipping_info}">{shipping_info}</option>
 
 </select>
 <script>

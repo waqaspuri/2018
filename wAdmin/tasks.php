@@ -707,6 +707,47 @@ if (!$taskFiles && !empty($attachmentFile)) {
     $taskFiles[] = array('fileName' => $attachmentName, 'storedFile' => $attachmentFile);
 }
 
+$viewWhatsAppConfig = $whatsAppTemplates[$taskWhatsAppTemplate] ?? null;
+$viewWhatsAppVariables = is_array($viewWhatsAppConfig) && isset($viewWhatsAppConfig['variables']) && is_array($viewWhatsAppConfig['variables']) ? array_values(array_map('trim', $viewWhatsAppConfig['variables'])) : array();
+$viewWhatsAppVariableCount = count($viewWhatsAppVariables);
+$viewOrderResult = mysqli_query($conn, "SELECT o.unitPrice,o.quantity,o.totalAmt,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,p.prodName FROM orders o LEFT JOIN products p ON p.id=o.productID WHERE o.id='" . (int)$orderID . "' LIMIT 1");
+$viewOrder = $viewOrderResult ? (mysqli_fetch_assoc($viewOrderResult) ?: array()) : array();
+$viewOrderValues = array(
+    'unit_price' => $viewOrder['unitPrice'] ?? '', 'quantity' => $viewOrder['quantity'] ?? '',
+    'total_amount' => $viewOrder['totalAmt'] ?? '', 'order_transport' => $viewOrder['orderDelievery'] ?? '',
+    'order_packaging' => $viewOrder['orderPackaging'] ?? '', 'product_name' => $viewOrder['prodName'] ?? '',
+    'document_order_number' => $viewOrder['documentOrderNo'] ?? '', 'proforma_invoice' => $viewOrder['invoiceNo'] ?? '',
+    'arrival_date' => !empty($viewOrder['eta']) ? viewDateFormat($viewOrder['eta']) : '',
+    'departure_date' => !empty($viewOrder['dta']) ? viewDateFormat($viewOrder['dta']) : '',
+    'latest_date_shipment' => !empty($viewOrder['latestDateShipment']) ? viewDateFormat($viewOrder['latestDateShipment']) : '',
+    'document_bill_no' => $viewOrder['billNo'] ?? '', 'doucment_expiry_date' => !empty($viewOrder['expiryDate']) ? viewDateFormat($viewOrder['expiryDate']) : '',
+    'arrival_new_date' => !empty($viewOrder['newETA']) ? viewDateFormat($viewOrder['newETA']) : '',
+    'payment_terms' => $viewOrder['paymentTerms'] ?? ''
+);
+$viewAssignedCustomerIDs = array_values(array_filter(array_map('intval', explode(',', (string)$assignTo))));
+$viewWhatsAppPayloadCounts = array();
+foreach ($viewAssignedCustomerIDs as $viewCustomerID) {
+    $viewCustomerResult = mysqli_query($conn, "SELECT applicantName,companyName,mobileNumber,email2 FROM customers WHERE id=" . $viewCustomerID . " LIMIT 1");
+    $viewCustomer = $viewCustomerResult ? (mysqli_fetch_assoc($viewCustomerResult) ?: array()) : array();
+    $viewPhone = preg_replace('/[^0-9+]/', '', (string)($viewCustomer['mobileNumber'] ?? ''));
+    if (strpos($viewPhone, '00') === 0) $viewPhone = '+' . substr($viewPhone, 2);
+    $viewRecipientValues = $viewOrderValues + array(
+        'applicant_name' => $viewCustomer['applicantName'] ?? '',
+        'company_name' => $viewCustomer['companyName'] ?? '',
+        'mobile_number' => $viewPhone,
+        'second_email' => $viewCustomer['email2'] ?? ''
+    );
+    $filledValues = 0;
+    foreach ($viewWhatsAppVariables as $viewVariable) {
+        if (in_array($viewVariable, whatsgTaskMergeTagNames(), true) && trim((string)($viewRecipientValues[$viewVariable] ?? '')) !== '') $filledValues++;
+    }
+    $viewWhatsAppPayloadCounts[] = $filledValues;
+}
+$viewWhatsAppPayloadCount = $viewWhatsAppPayloadCounts ? min($viewWhatsAppPayloadCounts) : 0;
+$viewWhatsAppWarning = in_array('whatsapp', explode(',', (string)$sendBy), true)
+    && $viewWhatsAppPayloadCount !== $viewWhatsAppVariableCount;
+$viewWhatsAppWarningText = 'WhatsApp is not recommended: this template has ' . $viewWhatsAppVariableCount . ' variable(s), but only ' . $viewWhatsAppPayloadCount . ' non-empty payload value(s) are available for every assigned recipient. Turn off WhatsApp or fill the missing task or order values.';
+
 $sqlOrder = mysqli_query($conn,"SELECT statusID FROM orders WHERE id='".$rowsEdit['orderID']."'");
 $rowsOrdr = mysqli_fetch_assoc($sqlOrder);
 ?>
@@ -736,7 +777,7 @@ echo '<div class="alert alert-'.($_GET['act']==='3'?'success':'danger').'"><butt
 <div class="col-lg-12">
 <section class="panel">
 <header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>tasks.php?action=edit&id=<?=$rowsEdit['id'];?>"><b>Edit</b></a> | <a href="<?=$siteUrl;?>tasks.php"><b>Back</b></a> </div>
+<div class="panel-actions"><?php if ($viewWhatsAppWarning): ?> <span class="label label-warning" title="<?=htmlspecialchars($viewWhatsAppWarningText, ENT_QUOTES, 'UTF-8');?>">WhatsApp payload <?=$viewWhatsAppPayloadCount;?>/<?=$viewWhatsAppVariableCount;?></span> &nbsp;<?php endif; ?><a href="<?=$siteUrl;?>tasks.php?action=edit&id=<?=$rowsEdit['id'];?>"><b>Edit</b></a> | <a href="<?=$siteUrl;?>tasks.php"><b>Back</b></a> </div>
 <h2 class="panel-title">View Tasks</h2>
 </header>
 <div class="panel-body viewFrm">
@@ -956,6 +997,36 @@ $('#taskForm').on('submit', function(){
 });
 $("#taskSMSID").change(function(){ $('#saveSMSTemplate').prop('checked', false); $.ajax({ url:"<?=$siteUrl;?>assignAjax.php?act=smsTmp&id=" + $(this).val(),type: "GET",success: function(data){ $('#taskSMS').html(data); } }); });
 $("#taskMessageID").change(function(){ $('#saveEmailTemplate').prop('checked', false); $.ajax({ url:"<?=$siteUrl;?>assignAjax.php?act=mailTmp&id=" + $(this).val(),type: "GET",success: function(data){ var x = data; var optn=x.split(',~,');  $('#subject').val(optn[0]); $('.taskMessageInfo .note-editable').html(optn[1]); } }); });
+var whatsAppTemplates = <?=json_encode($whatsAppTemplates, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);?>;
+var whatsAppMappedVariables = <?=json_encode(whatsgTaskMergeTagNames());?>;
+function updateTaskWhatsAppPayloadWarning() {
+    var whatsAppEnabled = $('#taskForm input[name="sendBy[]"][value="whatsapp"]').is(':checked');
+    var template = whatsAppTemplates[$('#taskWhatsAppTemplate').val()];
+    var warning = $('#taskWhatsAppPayloadWarning');
+    if (!whatsAppEnabled || !template || !Array.isArray(template.variables)) {
+        warning.hide().text('');
+        return;
+    }
+    var variableCount = template.variables.length;
+    var payloadValueCount = template.variables.filter(function(variable) {
+        return whatsAppMappedVariables.indexOf(String(variable).trim()) !== -1;
+    }).length;
+    var exampleValuesMismatch = Array.isArray(template.variableExamples)
+        && template.variableExamples.filter(function(value) { return String(value).trim() !== ''; }).length !== variableCount;
+    if (payloadValueCount !== variableCount || exampleValuesMismatch) {
+        var exampleValueCount = Array.isArray(template.variableExamples)
+            ? template.variableExamples.filter(function(value) { return String(value).trim() !== ''; }).length
+            : null;
+        var detail = 'This template has ' + variableCount + ' variable(s), but only ' + payloadValueCount + ' payload value(s) can be filled';
+        if (exampleValueCount !== null) detail += ' and ' + exampleValueCount + ' example value(s) are configured';
+        warning.text('WhatsApp is not recommended for this task: ' + detail + '. Turn off WhatsApp or choose a template with all required values.').show();
+        return;
+    }
+    warning.hide().text('');
+}
+$('#taskWhatsAppTemplate').on('change', updateTaskWhatsAppPayloadWarning);
+$('#taskForm input[name="sendBy[]"][value="whatsapp"]').on('change', updateTaskWhatsAppPayloadWarning);
+updateTaskWhatsAppPayloadWarning();
 });
 </script>
 <script src="<?=$siteUrl?>assets/vendor/summernote/summernote.js"></script>
@@ -1159,6 +1230,7 @@ echo '<option value="'.$rowSMSTmp['id'].'" '.((($rowSMSTmp['id']==$taskSMSID) ||
 <?php endforeach; ?>
 </select>
 <small class="text-muted">Templates come from approved WhatsApp templates. <a href="<?=$siteUrl;?>whatsapp_templates.php">Manage templates</a>.</small>
+<div id="taskWhatsAppPayloadWarning" class="alert alert-warning" style="display:none;margin-top:10px" role="alert"></div>
 </div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Subject</label>

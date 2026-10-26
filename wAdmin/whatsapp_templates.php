@@ -44,9 +44,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $message = 'Enter a dropdown label and the exact approved template name.';
                 $messageType = 'danger';
             } elseif (array_key_exists($label, $templates)) {
-                $message = 'That dropdown label already exists. Remove it first if you want to replace it.';
+                $message = 'The template dropdown label "' . $label . '" is already in use. Choose a different label, or remove the existing template first.';
                 $messageType = 'danger';
-            } elseif (count(array_diff($variables, $mergeTags)) > 0) {
+            } elseif (count(array_diff($variables, array_merge($mergeTags, array('custom')))) > 0) {
                 $message = 'One or more selected variables are not supported.';
                 $messageType = 'danger';
             } elseif (preg_match('/[\r\n\x00-\x1F]/', $label . $templateName)) {
@@ -139,6 +139,7 @@ include "include/header.php";
                 <div class="col-sm-9"><select class="form-control" name="variables[]">
                   <option value="">Select variable for {{1}}</option>
                   <?php foreach ($mergeTags as $mergeTag): ?><option value="<?=htmlspecialchars($mergeTag, ENT_QUOTES, 'UTF-8');?>"><?=htmlspecialchars('{' . $mergeTag . '}', ENT_QUOTES, 'UTF-8');?></option><?php endforeach; ?>
+                  <option value="custom">Assign Custom {{1}}</option>
                 </select></div>
                 <div class="col-sm-3"><button type="button" class="btn btn-danger remove-variable">Remove</button></div>
               </div>
@@ -168,7 +169,7 @@ include "include/header.php";
               <td><?=htmlspecialchars((string)$templateLabel, ENT_QUOTES, 'UTF-8');?></td>
               <td><?=htmlspecialchars((string)$templateConfig['name'], ENT_QUOTES, 'UTF-8');?></td>
               <td><?=whatsgTemplateSupportsMedia($templateConfig) ? 'Image' : 'No';?></td>
-              <td><?=htmlspecialchars(implode(' → ', array_map(function ($variable) { return '{' . $variable . '}'; }, $templateConfig['variables'])), ENT_QUOTES, 'UTF-8');?></td>
+              <td><?=htmlspecialchars(implode(' → ', array_map(function ($variable) { return $variable === 'custom' ? 'Custom' : '{' . $variable . '}'; }, $templateConfig['variables'])), ENT_QUOTES, 'UTF-8');?></td>
               <td>
                 <form method="post" onsubmit="return confirm('Remove this WhatsApp template?');">
                   <input type="hidden" name="csrfToken" value="<?=htmlspecialchars($_SESSION['whatsAppTemplatesCsrf'], ENT_QUOTES, 'UTF-8');?>">
@@ -191,6 +192,7 @@ include "include/header.php";
     <div class="col-sm-9"><select class="form-control" name="variables[]">
       <option value="">Select variable</option>
       <?php foreach ($mergeTags as $mergeTag): ?><option value="<?=htmlspecialchars($mergeTag, ENT_QUOTES, 'UTF-8');?>"><?=htmlspecialchars('{' . $mergeTag . '}', ENT_QUOTES, 'UTF-8');?></option><?php endforeach; ?>
+      <option value="custom">Assign Custom {{1}}</option>
     </select></div>
     <div class="col-sm-3"><button type="button" class="btn btn-danger remove-variable">Remove</button></div>
   </div>
@@ -205,6 +207,11 @@ include "include/header.php";
     document.getElementById('emptyVariablesNotice').style.display = selects.length === 0 ? '' : 'none';
     for (var i = 0; i < selects.length; i++) {
       selects[i].options[0].text = 'Select variable for {{' + (i + 1) + '}}';
+      for (var optionIndex = 0; optionIndex < selects[i].options.length; optionIndex++) {
+        if (selects[i].options[optionIndex].value === 'custom') {
+          selects[i].options[optionIndex].text = 'Assign Custom {{' + (i + 1) + '}}';
+        }
+      }
     }
   }
   add.addEventListener('click', function () {

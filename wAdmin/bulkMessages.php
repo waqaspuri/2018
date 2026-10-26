@@ -98,8 +98,9 @@ function buildBulkWhatsAppPreviews($conn, $ids, $templateKey, $templates, $campa
     $variables = array_values(array_map('trim', $template['variables']));
     $recipientFields = array('applicant_name', 'company_name', 'mobile_number', 'second_email');
     foreach ($variables as $index => $variable) {
-        if (!in_array($variable, whatsgTaskMergeTagNames(), true)) return array($payloads, array('Unsupported template variable: {' . $variable . '}'));
-        if (!in_array($variable, $recipientFields, true) && trim((string)($campaignValues[$index] ?? '')) === '') {
+        if ($variable !== 'custom' && !in_array($variable, whatsgTaskMergeTagNames(), true)) return array($payloads, array('Unsupported template variable: {' . $variable . '}'));
+        if (($variable === 'custom' || !in_array($variable, $recipientFields, true)) && trim((string)($campaignValues[$index] ?? '')) === '') {
+            if ($variable === 'custom') return array($payloads, array('Enter a value for template placeholder {{' . ($index + 1) . '}}.'));
             return array($payloads, array('Enter a campaign value for {' . $variable . '} (template variable {{' . ($index + 1) . '}}).'));
         }
     }
@@ -665,10 +666,13 @@ document.addEventListener('DOMContentLoaded', function() {
         config.variables.forEach(function(variable, index) {
             var row = document.createElement('div');
             row.className = 'form-group';
-            if (['applicant_name', 'company_name', 'mobile_number', 'second_email'].indexOf(variable) !== -1) {
+            var isCustom = variable === 'custom';
+            var placeholderLabel = '{{' + (index + 1) + '}}';
+            var variableLabel = isCustom ? placeholderLabel : '{' + variable + '}';
+            if (!isCustom && ['applicant_name', 'company_name', 'mobile_number', 'second_email'].indexOf(variable) !== -1) {
                 row.innerHTML = '<input type="hidden" name="campaignValues[]" value=""><label>{{' + (index + 1) + '}} — {' + variable + '}</label><p class="form-control-static text-success">Filled from each recipient automatically</p>';
             } else {
-                row.innerHTML = '<label for="campaignValue' + index + '">{{' + (index + 1) + '}} — {' + variable + '}</label><input class="form-control" id="campaignValue' + index + '" name="campaignValues[]" maxlength="1000" required placeholder="Enter campaign value for {' + variable + '}" value="">';
+                row.innerHTML = '<label for="campaignValue' + index + '">' + (isCustom ? placeholderLabel : placeholderLabel + ' — ' + variableLabel) + '</label><input class="form-control" id="campaignValue' + index + '" name="campaignValues[]" maxlength="1000" required placeholder="Enter value for ' + placeholderLabel + '" value="">';
                 row.querySelector('input').value = oldValues[index] || '';
             }
             container.appendChild(row);

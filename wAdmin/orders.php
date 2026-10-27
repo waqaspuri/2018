@@ -1590,6 +1590,7 @@ if(isset($_GET['q']) && $_GET['q']!=""){
         OR p.prodName LIKE '%" . $searchTerm . "%') ";
 }
 $sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,c.applicantName,v.applicantName as vdr,o.dta,o.eta,o.newETA,o.id,o.invoiceNo,p.prodName,o.createdDate,o.modifiedDate,o.statusID,
+    s.status AS statusName,s.bgColor AS statusColor,COALESCE(notes.noteCount,0) AS noteCount,
     GREATEST(
         COALESCE(o.modifiedDate,o.createdDate),
         COALESCE(notes.lastNoteActivity,o.createdDate),
@@ -1599,9 +1600,10 @@ $sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDat
         ELSE NULL END
     ) AS lastActivity
     FROM orders AS o JOIN products AS p ON p.id=o.productID JOIN customers AS c ON c.id=o.customerID JOIN customers AS v ON v.id=o.vendorID
-    LEFT JOIN (SELECT orderID,MAX(COALESCE(modifiedDate,createdDate)) AS lastNoteActivity FROM order_notes GROUP BY orderID) AS notes ON notes.orderID=o.id
+    LEFT JOIN status AS s ON s.id=o.statusID
+    LEFT JOIN (SELECT orderID,COUNT(*) AS noteCount,MAX(COALESCE(modifiedDate,createdDate)) AS lastNoteActivity FROM order_notes GROUP BY orderID) AS notes ON notes.orderID=o.id
     WHERE o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')." ".$sqlSrch." ORDER BY lastActivity DESC,o.createdDate DESC,o.id DESC limit $eu, $limit";
-$sqltot = "SELECT o.id FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID AND o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')."  ". $sqlSrch." ORDER BY o.id DESC";
+$sqltot = "SELECT COUNT(*) AS total FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID AND o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')."  ". $sqlSrch;
 $sqlMergedInvoices = mysqli_query($conn, "SELECT invoiceNo, COUNT(*) AS total_count FROM orders WHERE invoiceNo <> '' GROUP BY invoiceNo HAVING COUNT(*) > 1");
 $mergedInvoiceMap = array();
 while ($rowMergedInvoice = mysqli_fetch_assoc($sqlMergedInvoices)) {
@@ -1610,7 +1612,7 @@ while ($rowMergedInvoice = mysqli_fetch_assoc($sqlMergedInvoices)) {
 
 $resultSeller= mysqli_query($conn,$sqlSeller);
 $resulttot=mysqli_query($conn,$sqltot);
-$nume=mysqli_num_rows($resulttot);
+$nume=(int)mysqli_fetch_assoc($resulttot)['total'];
 if (@mysqli_num_rows($resultSeller)!=0){
 
 $sno=$start;
@@ -1638,7 +1640,7 @@ if($rows['latestDateShipment']==''){ $msgTxt.='<p>- Latest Date Shipment</p>';}
 if($rows['billNo']==''){ $msgTxt.='<p>- Bill Number</p>';}
 if($rows['documentOrderNo']==''){ $msgTxt.='<p>- Document Order No</p>';}
 }
-$statusColor = trim((string)statusBg($rows['statusID']));
+$statusColor = trim((string)$rows['statusColor']);
 if (!preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusColor)) {
     $statusColor = '#ffffff';
 }
@@ -1651,12 +1653,12 @@ echo '<tr class="statusBgTD'.$sno.' order-row">
 <td>'.$rows['prodName'];
 if($msgTxt){echo '<div class="alert alert-danger smlTxt"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong><p>Error Fields :-</p> '.$msgTxt.'</strong></div>';}
 echo '</td>
-<td class="order-status-cell">'.statusNm($rows['statusID']).'</td>
+<td class="order-status-cell">'.$rows['statusName'].'</td>
 <td align="center">'.$getRDStg.'</td>
 <td align="center">'.viewDtTm($rows['createdDate']).'</td>
 <td align="center"><div class="table-action-buttons">
 <a title="View order" aria-label="View order" class="btn btn-default viewBtn icon-action" href="orders.php?action=view&id='.$rows['id'].'"><i class="fa fa-eye" aria-hidden="true"></i><span class="sr-only">View</span></a>
-<a title="Order notes ('.orderNotesTotal($rows['id']).')" aria-label="Order notes ('.orderNotesTotal($rows['id']).')" class="btn btn-default notsBtn icon-action" href="orderNotes.php?oID='.$rows['id'].'"><i class="fa fa-file-text-o" aria-hidden="true"></i><span class="sr-only">Notes</span><span class="action-count">'.orderNotesTotal($rows['id']).'</span></a>
+<a title="Order notes ('.$rows['noteCount'].')" aria-label="Order notes ('.$rows['noteCount'].')" class="btn btn-default notsBtn icon-action" href="orderNotes.php?oID='.$rows['id'].'"><i class="fa fa-file-text-o" aria-hidden="true"></i><span class="sr-only">Notes</span><span class="action-count">'.$rows['noteCount'].'</span></a>
 <a title="Add task" aria-label="Add task" class="btn btn-default addTaskBtn icon-action" href="tasks.php?action=add&orderID='.$rows['id'].'"><i class="fa fa-tasks" aria-hidden="true"></i><span class="sr-only">Add Task</span></a>
 </div></td>
 </tr>';

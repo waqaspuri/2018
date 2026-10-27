@@ -11,7 +11,6 @@ $pendingOtp = $_SESSION['admin_login_pending'] ?? null;
 <title><?=$siteName;?></title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<link href="http://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800%7CShadows+Into+Light" rel="stylesheet" type="text/css">
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap/css/bootstrap.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/font-awesome/css/font-awesome.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/magnific-popup/magnific-popup.css" />
@@ -76,7 +75,6 @@ $pendingOtp = $_SESSION['admin_login_pending'] ?? null;
 <script src="<?=$siteUrl;?>assets/vendor/jquery/jquery.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/jquery-browser-mobile/jquery.browser.mobile.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/jquery-cookie/jquery.cookie.js"></script>
-<script src="<?=$siteUrl;?>assets/vendor/style-switcher/style.switcher.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/bootstrap/js/bootstrap.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/nanoscroller/nanoscroller.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>

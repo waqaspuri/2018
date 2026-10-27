@@ -15,14 +15,12 @@ header("location: toDo.php?act=1");
 <meta charset="UTF-8">
 <title><?=$siteName;?> :: Admin Panel</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<link href="http://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800%7CShadows+Into+Light" rel="stylesheet" type="text/css">
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap/css/bootstrap.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/font-awesome/css/font-awesome.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/magnific-popup/magnific-popup.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-datepicker/css/datepicker3.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/jquery-ui/css/ui-lightness/jquery-ui-1.10.4.custom.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-multiselect/bootstrap-multiselect.css" />
-<link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/morris/morris.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css">
 <script src="<?=$siteUrl;?>assets/vendor/modernizr/modernizr.js"></script>

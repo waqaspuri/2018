@@ -1232,7 +1232,7 @@ echo '<option value="'.$rowSMSTmp['id'].'" '.((($rowSMSTmp['id']==$taskSMSID) ||
 <select class="form-control" name="taskWhatsAppTemplate" id="taskWhatsAppTemplate">
 <option value="">- Select -</option>
 <?php foreach ($whatsAppTemplates as $templateLabel=>$templateConfig): ?>
-<option value="<?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?>" <?=((string)$taskWhatsAppTemplate===(string)$templateLabel?'selected':'')?>><?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?> (<?=htmlspecialchars($templateConfig['name'], ENT_QUOTES, 'UTF-8')?><?=whatsgTemplateSupportsMedia($templateConfig) ? ', image header' : '';?>)</option>
+<option value="<?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?>" <?=((string)$taskWhatsAppTemplate===(string)$templateLabel?'selected':'')?>><?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?> (<?=htmlspecialchars($templateConfig['name'], ENT_QUOTES, 'UTF-8')?><?php $templateMediaType = whatsgTemplateMediaType($templateConfig); echo $templateMediaType === 'document' ? ', PDF header' : ($templateMediaType === 'image' ? ', image header' : ''); ?>)</option>
 <?php endforeach; ?>
 </select>
 <small class="text-muted">Templates come from approved WhatsApp templates. <a href="<?=$siteUrl;?>whatsapp_templates.php">Manage templates</a>.</small>

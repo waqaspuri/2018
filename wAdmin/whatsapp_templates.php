@@ -36,7 +36,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             }
         } else {
             $templateName = trim((string)($_POST['templateName'] ?? ''));
-            $supportsMedia = !empty($_POST['supportsMedia']);
+            $mediaType = (string)($_POST['mediaType'] ?? '');
+            if (!in_array($mediaType, array('', 'image', 'document'), true)) $mediaType = '';
             $variables = isset($_POST['variables']) && is_array($_POST['variables']) ? array_values($_POST['variables']) : array();
             $variables = array_values(array_map('trim', $variables));
             $variables = array_values(array_filter($variables, function ($variable) { return $variable !== ''; }));
@@ -53,7 +54,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $message = 'Labels and template names cannot contain line breaks or control characters.';
                 $messageType = 'danger';
             } else {
-                $templates[$label] = array('name' => $templateName, 'variables' => $variables, 'supportsMedia' => $supportsMedia);
+                $templates[$label] = array('name' => $templateName, 'variables' => $variables, 'mediaType' => $mediaType);
+                if ($mediaType === 'image') $templates[$label]['supportsMedia'] = true;
             }
         }
 
@@ -128,8 +130,8 @@ include "include/header.php";
           <div class="col-md-8"><input class="form-control" id="templateName" name="templateName" maxlength="150" required placeholder="shipment_schedule"></div>
         </div>
         <div class="form-group">
-          <label class="col-md-2 control-label" for="supportsMedia">Media header</label>
-          <div class="col-md-8"><label class="checkbox-inline"><input type="checkbox" id="supportsMedia" name="supportsMedia" value="1"> This approved template supports an image header</label><p class="help-block">For task messages, the first attached image is sent as <code>mediaUri</code>. If no image is attached, <code>mediaUri</code> is omitted.</p></div>
+          <label class="col-md-2 control-label" for="mediaType">Media header</label>
+          <div class="col-md-8"><select class="form-control" id="mediaType" name="mediaType"><option value="">No media header</option><option value="image">Image</option><option value="document">PDF document</option></select><p class="help-block">Choose the media type configured in the approved WhatsApp template. Task messages use the first matching attached file as <code>mediaUri</code>. Image headers require an image template; PDF headers require a document template.</p></div>
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label">Template variables</label>
@@ -168,7 +170,7 @@ include "include/header.php";
             <tr>
               <td><?=htmlspecialchars((string)$templateLabel, ENT_QUOTES, 'UTF-8');?></td>
               <td><?=htmlspecialchars((string)$templateConfig['name'], ENT_QUOTES, 'UTF-8');?></td>
-              <td><?=whatsgTemplateSupportsMedia($templateConfig) ? 'Image' : 'No';?></td>
+              <td><?php $configuredMediaType = whatsgTemplateMediaType($templateConfig); echo $configuredMediaType === 'document' ? 'PDF document' : ($configuredMediaType === 'image' ? 'Image' : 'No'); ?></td>
               <td><?=htmlspecialchars(implode(' → ', array_map(function ($variable) { return $variable === 'custom' ? 'Custom' : '{' . $variable . '}'; }, $templateConfig['variables'])), ENT_QUOTES, 'UTF-8');?></td>
               <td>
                 <form method="post" onsubmit="return confirm('Remove this WhatsApp template?');">

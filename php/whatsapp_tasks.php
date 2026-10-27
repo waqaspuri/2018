@@ -29,10 +29,18 @@ function whatsgTaskMergeTagNames()
 
 function whatsgTemplateSupportsMedia($template)
 {
-    if (!is_array($template)) return false;
-    if (!empty($template['supportsMedia']) || !empty($template['mediaUri'])) return true;
+    return whatsgTemplateMediaType($template) !== '';
+}
+
+function whatsgTemplateMediaType($template)
+{
+    if (!is_array($template)) return '';
+    $mediaType = strtolower(trim((string)($template['mediaType'] ?? '')));
+    if (in_array($mediaType, array('image', 'document'), true)) return $mediaType;
+    // Older template entries used supportsMedia and _media to indicate image headers.
+    if (!empty($template['supportsMedia']) || !empty($template['mediaUri'])) return 'image';
     $templateName = strtolower(trim((string)($template['name'] ?? '')));
-    return $templateName !== '' && substr($templateName, -6) === '_media';
+    return $templateName !== '' && substr($templateName, -6) === '_media' ? 'image' : '';
 }
 
 function whatsgTaskLog($taskID, $templateName, $status, $details = array())
@@ -127,8 +135,9 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
     }
     $mediaUri = '';
     $attachmentNames = array();
-    if (whatsgTemplateSupportsMedia($template)) {
-        $imageAttachment = null;
+    $mediaType = whatsgTemplateMediaType($template);
+    $mediaAttachment = null;
+    if ($mediaType !== '') {
         $attachmentResult = mysqli_query($conn, "SELECT fileName,storedFile FROM task_attachments WHERE taskID=" . (int)$taskID . " ORDER BY id ASC");
         if ($attachmentResult) {
             while ($attachment = mysqli_fetch_assoc($attachmentResult)) {
@@ -138,35 +147,56 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
                 $fileInfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
                 $mimeType = $fileInfo ? (string)finfo_file($fileInfo, $localFile) : '';
                 if ($fileInfo) finfo_close($fileInfo);
-                if (strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml') {
-                    $imageAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
+                $isImage = strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml';
+                $isPdf = in_array($mimeType, array('application/pdf', 'application/x-pdf'), true);
+                if (($mediaType === 'image' && $isImage) || ($mediaType === 'document' && $isPdf)) {
+                    $mediaAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
                     break;
                 }
             }
         }
         // Older tasks may only have the legacy single-attachment fields.
-        if (!$imageAttachment && !empty($task['attachmentFile'])) {
+        if (!$mediaAttachment && !empty($task['attachmentFile'])) {
             $storedFile = basename((string)$task['attachmentFile']);
             $localFile = dirname(__DIR__) . '/img/' . $storedFile;
             if (is_file($localFile)) {
                 $fileInfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
                 $mimeType = $fileInfo ? (string)finfo_file($fileInfo, $localFile) : '';
                 if ($fileInfo) finfo_close($fileInfo);
-                if (strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml') {
-                    $imageAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
+                $isImage = strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml';
+                $isPdf = in_array($mimeType, array('application/pdf', 'application/x-pdf'), true);
+                if (($mediaType === 'image' && $isImage) || ($mediaType === 'document' && $isPdf)) {
+                    $mediaAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
                 }
             }
         }
-        if ($imageAttachment) {
+        if ($mediaAttachment) {
             global $siteUrlMain;
             $mediaBaseUrl = rtrim(mailEnvironmentValue('WHATSG_MEDIA_BASE_URL', (string)$siteUrlMain), '/');
             if ($mediaBaseUrl === '') {
-                $detail = 'Public site URL is not configured for the WhatsApp image attachment';
+                $detail = 'Public site URL is not configured for the WhatsApp media attachment';
                 whatsgTaskLog($taskID, $template['name'], 'error', array('detail' => $detail));
                 return array(false, $detail);
             }
-            $mediaUri = $mediaBaseUrl . '/img/' . rawurlencode($imageAttachment['storedFile']);
-            $attachmentNames[] = $imageAttachment['name'];
+            $mediaUri = $mediaBaseUrl . '/img/' . rawurlencode($mediaAttachment['storedFile']);
+            $attachmentNames[] = $mediaAttachment['name'];
+        } else {
+            $expected = $mediaType === 'document' ? 'PDF document header' : 'image header';
+            $detail = 'This WhatsApp template requires an attached ' . $expected . ', but no matching file was found.';
+            whatsgTaskLog($taskID, $template['name'], 'error', array('detail' => $detail, 'media_type' => $mediaType));
+            if ($manualPreview) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(array(
+                    'debug' => true,
+                    'message' => 'No API requests were sent. This is a preview only.',
+                    'selected_contacts' => count($customerIDs),
+                    'payload_count' => 0,
+                    'payloads' => array(),
+                    'errors' => array(array('error' => $detail))
+                ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                die();
+            }
+            return array(false, $detail);
         }
     }
     $sent = 0;
@@ -224,6 +254,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
                 'variables' => $debugVariables
             );
             if ($attachmentNames) $preview['attachment_names'] = $attachmentNames;
+            if ($mediaType !== '') $preview['media_type'] = $mediaType;
             $payloadPreviews[] = $preview;
             continue;
         }

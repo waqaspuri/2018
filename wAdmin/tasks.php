@@ -66,14 +66,16 @@ function saveTaskAttachment($file, &$error) {
         finfo_close($fileInfo);
     }
     $isPdf = in_array($mimeType, array('application/pdf', 'application/x-pdf'), true);
+    $isZip = in_array($mimeType, array('application/zip', 'application/x-zip', 'application/x-zip-compressed'), true)
+        || ($extension === 'zip' && in_array($mimeType, array('', 'application/octet-stream'), true));
     $isImage = strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml';
-    if (!$isPdf && !$isImage) {
-        $error = 'Only PDF files and image files are allowed.';
+    if (!$isPdf && !$isZip && !$isImage) {
+        $error = 'Only PDF, ZIP, and image files are allowed.';
         return false;
     }
     $extension = preg_replace('/[^a-z0-9]/', '', $extension);
     if ($extension === '') {
-        $extension = $isPdf ? 'pdf' : 'img';
+        $extension = $isPdf ? 'pdf' : ($isZip ? 'zip' : 'img');
     }
 
     $storedName = 'task_' . str_replace('.', '_', uniqid('', true)) . '.' . $extension;
@@ -1232,7 +1234,7 @@ echo '<option value="'.$rowSMSTmp['id'].'" '.((($rowSMSTmp['id']==$taskSMSID) ||
 <select class="form-control" name="taskWhatsAppTemplate" id="taskWhatsAppTemplate">
 <option value="">- Select -</option>
 <?php foreach ($whatsAppTemplates as $templateLabel=>$templateConfig): ?>
-<option value="<?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?>" <?=((string)$taskWhatsAppTemplate===(string)$templateLabel?'selected':'')?>><?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?> (<?=htmlspecialchars($templateConfig['name'], ENT_QUOTES, 'UTF-8')?><?php $templateMediaType = whatsgTemplateMediaType($templateConfig); echo $templateMediaType === 'document' ? ', PDF header' : ($templateMediaType === 'image' ? ', image header' : ''); ?>)</option>
+<option value="<?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?>" <?=((string)$taskWhatsAppTemplate===(string)$templateLabel?'selected':'')?>><?=htmlspecialchars($templateLabel, ENT_QUOTES, 'UTF-8')?> (<?=htmlspecialchars($templateConfig['name'], ENT_QUOTES, 'UTF-8')?><?php $templateMediaType = whatsgTemplateMediaType($templateConfig); echo $templateMediaType === 'document' ? ', document header' : ($templateMediaType === 'image' ? ', image header' : ''); ?>)</option>
 <?php endforeach; ?>
 </select>
 <small class="text-muted">Templates come from approved WhatsApp templates. <a href="<?=$siteUrl;?>whatsapp_templates.php">Manage templates</a>.</small>
@@ -1375,8 +1377,8 @@ small {
 <div class="form-group">
 <label class="col-md-2 control-label" for="taskAttachment">Attachment</label>
 <div class="col-md-9">
-<input type="file" class="form-control" name="taskAttachments[]" id="taskAttachment" multiple accept="application/pdf,image/*">
-<span class="hintTxt">Select one or more PDF or image files (maximum 10 MB each).</span>
+<input type="file" class="form-control" name="taskAttachments[]" id="taskAttachment" multiple accept="application/pdf,application/zip,.pdf,.zip,image/*">
+<span class="hintTxt">Select one or more PDF, ZIP, or image files (maximum 10 MB each).</span>
 <?php $taskFiles = !empty($id) ? taskAttachments($conn, $id) : array(); if (!empty($taskFiles)): ?><br><b>Current files:</b><?php foreach ($taskFiles as $taskFile): ?><div><a href="<?=$siteUrlMain?>img/<?=rawurlencode($taskFile['storedFile'])?>" target="_blank"><?=htmlspecialchars($taskFile['fileName'])?></a></div><?php endforeach; ?><?php endif; ?>
 </div>
 </div>

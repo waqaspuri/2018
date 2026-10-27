@@ -43,6 +43,18 @@ function whatsgTemplateMediaType($template)
     return $templateName !== '' && substr($templateName, -6) === '_media' ? 'image' : '';
 }
 
+function whatsgTaskAttachmentMediaType($localFile, $storedFile)
+{
+    $fileInfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mimeType = $fileInfo ? (string)finfo_file($fileInfo, $localFile) : '';
+    if ($fileInfo) finfo_close($fileInfo);
+    $extension = strtolower(pathinfo((string)$storedFile, PATHINFO_EXTENSION));
+    if (in_array($mimeType, array('application/pdf', 'application/x-pdf'), true) || $extension === 'pdf') return 'document';
+    if (in_array($mimeType, array('application/zip', 'application/x-zip', 'application/x-zip-compressed'), true) || ($extension === 'zip' && in_array($mimeType, array('', 'application/octet-stream'), true))) return 'document';
+    if (strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml') return 'image';
+    return '';
+}
+
 function whatsgTaskLog($taskID, $templateName, $status, $details = array())
 {
     $entry = array_merge(array(
@@ -138,7 +150,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
     $mediaType = whatsgTemplateMediaType($template);
     $mediaAttachment = null;
     if ($mediaType !== '') {
-        $pdfAttachment = null;
+        $documentAttachment = null;
         $imageAttachment = null;
         $attachmentResult = mysqli_query($conn, "SELECT fileName,storedFile FROM task_attachments WHERE taskID=" . (int)$taskID . " ORDER BY id ASC");
         if ($attachmentResult) {
@@ -146,33 +158,25 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
                 $storedFile = basename((string)$attachment['storedFile']);
                 $localFile = dirname(__DIR__) . '/img/' . $storedFile;
                 if ($storedFile === '' || !is_file($localFile)) continue;
-                $fileInfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
-                $mimeType = $fileInfo ? (string)finfo_file($fileInfo, $localFile) : '';
-                if ($fileInfo) finfo_close($fileInfo);
-                $isImage = strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml';
-                $isPdf = in_array($mimeType, array('application/pdf', 'application/x-pdf'), true);
-                if ($isPdf && !$pdfAttachment) $pdfAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
-                if ($isImage && !$imageAttachment) $imageAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
+                $attachmentMediaType = whatsgTaskAttachmentMediaType($localFile, $storedFile);
+                if ($attachmentMediaType === 'document' && !$documentAttachment) $documentAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
+                if ($attachmentMediaType === 'image' && !$imageAttachment) $imageAttachment = array('name' => (string)$attachment['fileName'], 'storedFile' => $storedFile);
             }
         }
         // Older tasks may only have the legacy single-attachment fields.
-        if (!$pdfAttachment && !$imageAttachment && !empty($task['attachmentFile'])) {
+        if (!$documentAttachment && !$imageAttachment && !empty($task['attachmentFile'])) {
             $storedFile = basename((string)$task['attachmentFile']);
             $localFile = dirname(__DIR__) . '/img/' . $storedFile;
             if (is_file($localFile)) {
-                $fileInfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
-                $mimeType = $fileInfo ? (string)finfo_file($fileInfo, $localFile) : '';
-                if ($fileInfo) finfo_close($fileInfo);
-                $isImage = strpos($mimeType, 'image/') === 0 && $mimeType !== 'image/svg+xml';
-                $isPdf = in_array($mimeType, array('application/pdf', 'application/x-pdf'), true);
-                if ($isPdf) $pdfAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
-                if ($isImage) $imageAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
+                $attachmentMediaType = whatsgTaskAttachmentMediaType($localFile, $storedFile);
+                if ($attachmentMediaType === 'document') $documentAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
+                if ($attachmentMediaType === 'image') $imageAttachment = array('name' => (string)$task['attachmentName'], 'storedFile' => $storedFile);
             }
         }
         // The WhatSG task payload uses the same mediaUri field for either file type.
         // Prefer a PDF when both are attached; otherwise send the available image.
-        $mediaAttachment = $pdfAttachment ?: $imageAttachment;
-        if ($mediaAttachment) $mediaType = $pdfAttachment ? 'document' : 'image';
+        $mediaAttachment = $documentAttachment ?: $imageAttachment;
+        if ($mediaAttachment) $mediaType = $documentAttachment ? 'document' : 'image';
         if ($mediaAttachment) {
             global $siteUrlMain;
             $mediaBaseUrl = rtrim(mailEnvironmentValue('WHATSG_MEDIA_BASE_URL', (string)$siteUrlMain), '/');
@@ -184,7 +188,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             $mediaUri = $mediaBaseUrl . '/img/' . rawurlencode($mediaAttachment['storedFile']);
             $attachmentNames[] = $mediaAttachment['name'];
         } else {
-            $detail = 'This WhatsApp template has media enabled, but no attached PDF or image was found.';
+            $detail = 'This WhatsApp template has media enabled, but no attached PDF, ZIP, or image was found.';
             whatsgTaskLog($taskID, $template['name'], 'error', array('detail' => $detail, 'media_type' => $mediaType));
             if ($manualPreview) {
                 header('Content-Type: application/json; charset=utf-8');

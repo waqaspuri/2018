@@ -131,7 +131,7 @@ include "include/header.php";
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label" for="mediaType">Media header</label>
-          <div class="col-md-8"><select class="form-control" id="mediaType" name="mediaType"><option value="">No media header</option><option value="image">Image</option><option value="document">PDF document</option></select><p class="help-block">Choose the media type configured in the approved WhatsApp template. Task messages use the first matching attached file as <code>mediaUri</code>. Image headers require an image template; PDF headers require a document template.</p></div>
+          <div class="col-md-8"><select class="form-control" id="mediaType" name="mediaType"><option value="">No media header</option><option value="image">Image</option><option value="document">Document (PDF/ZIP)</option></select><p class="help-block">Choose the media type configured in the approved WhatsApp template. Task messages use the first matching attached file as <code>mediaUri</code>. Image headers require an image template; PDF and ZIP headers use a document template.</p></div>
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label">Template variables</label>
@@ -170,7 +170,7 @@ include "include/header.php";
             <tr>
               <td><?=htmlspecialchars((string)$templateLabel, ENT_QUOTES, 'UTF-8');?></td>
               <td><?=htmlspecialchars((string)$templateConfig['name'], ENT_QUOTES, 'UTF-8');?></td>
-              <td><?php $configuredMediaType = whatsgTemplateMediaType($templateConfig); echo $configuredMediaType === 'document' ? 'PDF document' : ($configuredMediaType === 'image' ? 'Image' : 'No'); ?></td>
+              <td><?php $configuredMediaType = whatsgTemplateMediaType($templateConfig); echo $configuredMediaType === 'document' ? 'Document (PDF/ZIP)' : ($configuredMediaType === 'image' ? 'Image' : 'No'); ?></td>
               <td><?=htmlspecialchars(implode(' → ', array_map(function ($variable) { return $variable === 'custom' ? 'Custom' : '{' . $variable . '}'; }, $templateConfig['variables'])), ENT_QUOTES, 'UTF-8');?></td>
               <td>
                 <form method="post" onsubmit="return confirm('Remove this WhatsApp template?');">

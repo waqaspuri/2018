@@ -60,7 +60,7 @@ if (!is_array($submittedIDs)) {
     $submittedIDs = array();
 }
 $selectedIDs = array_values(array_unique(array_filter(array_map('intval', $submittedIDs), static fn($id) => $id > 0)));
-$whatsAppTemplates = whatsgTaskTemplates();
+$whatsAppTemplates = whatsgTaskTemplates($conn);
 $whatsAppPreview = array();
 $whatsAppPreviewErrors = array();
 $whatsAppTemplateKey = (string)($_POST['whatsAppTemplate'] ?? '');

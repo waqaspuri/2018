@@ -17,7 +17,7 @@ $taskWhatsAppTemplateColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 
 if ($taskWhatsAppTemplateColumn && mysqli_num_rows($taskWhatsAppTemplateColumn) === 0) {
     mysqli_query($conn, "ALTER TABLE tasks ADD COLUMN taskWhatsAppTemplate VARCHAR(100) NOT NULL DEFAULT '' AFTER taskSMSID");
 }
-$whatsAppTemplates = whatsgTaskTemplates();
+$whatsAppTemplates = whatsgTaskTemplates($conn);
 
 if (!isset($_GET['status']) && empty($_GET['action']) && !isset($_GET['act']) && (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET')) {
     $defaultTaskQuery = $_GET;

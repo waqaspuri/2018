@@ -4,10 +4,12 @@ include "include/configure.php";
 require_once __DIR__ . '/../php/mail_config.php';
 require_once __DIR__ . '/../php/whatsapp_tasks.php';
 
-loadMailEnvironment();
-$envPath = dirname(__DIR__) . '/.env';
 $mergeTags = whatsgTaskMergeTagNames();
-$templates = whatsgTaskTemplates();
+$templates = whatsgTaskTemplates($conn);
+$editLabel = (string)($_GET['edit'] ?? '');
+$editTemplate = isset($templates[$editLabel]) ? $templates[$editLabel] : null;
+$formVariables = $editTemplate ? array_values($editTemplate['variables']) : array('');
+if (!$formVariables) $formVariables = array('');
 $message = '';
 $messageType = 'success';
 
@@ -20,19 +22,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!hash_equals((string)$_SESSION['whatsAppTemplatesCsrf'], $postedToken)) {
         $message = 'The page expired. Reload it and try again.';
         $messageType = 'danger';
-    } elseif (!is_file($envPath) || !is_readable($envPath) || !is_writable($envPath)) {
-        $message = 'The .env file is not available for editing by the application.';
-        $messageType = 'danger';
     } else {
         $operation = (string)($_POST['operation'] ?? 'add');
+        $originalLabel = trim((string)($_POST['originalLabel'] ?? ''));
         $label = trim((string)($_POST['label'] ?? ''));
         if ($operation === 'delete') {
             $label = (string)($_POST['deleteLabel'] ?? '');
             if (!array_key_exists($label, $templates)) {
                 $message = 'Select a template to remove.';
                 $messageType = 'danger';
+            } elseif (whatsgTaskDeleteTemplate($conn, $label)) {
+                $message = 'Template removed.';
+                $templates = whatsgTaskTemplates($conn);
             } else {
-                unset($templates[$label]);
+                $message = 'The template could not be removed from the database.';
+                $messageType = 'danger';
             }
         } else {
             $templateName = trim((string)($_POST['templateName'] ?? ''));
@@ -44,7 +48,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if ($label === '' || $templateName === '') {
                 $message = 'Enter a dropdown label and the exact approved template name.';
                 $messageType = 'danger';
-            } elseif (array_key_exists($label, $templates)) {
+            } elseif ($operation === 'update' && !isset($templates[$originalLabel])) {
+                $message = 'The template to edit could not be found. Reload the page and try again.';
+                $messageType = 'danger';
+            } elseif ($operation !== 'update' && isset($templates[$label])) {
                 $message = 'The template dropdown label "' . $label . '" is already in use. Choose a different label, or remove the existing template first.';
                 $messageType = 'danger';
             } elseif (count(array_diff($variables, array_merge($mergeTags, array('custom')))) > 0) {
@@ -54,46 +61,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $message = 'Labels and template names cannot contain line breaks or control characters.';
                 $messageType = 'danger';
             } else {
-                $templates[$label] = array('name' => $templateName, 'variables' => $variables, 'mediaType' => $mediaType);
-                if ($mediaType === 'image') $templates[$label]['supportsMedia'] = true;
-            }
-        }
-
-        if ($message === '') {
-            $json = json_encode($templates, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_APOS);
-            if ($json === false) {
-                $message = 'The template list could not be encoded as JSON.';
-                $messageType = 'danger';
-            } else {
-                $contents = file_get_contents($envPath);
-                if ($contents === false) {
-                    $message = 'The .env file could not be read.';
+                $saved = $operation === 'update'
+                    ? ($originalLabel !== '' && whatsgTaskUpdateTemplate($conn, $originalLabel, $templateName, $variables, $mediaType))
+                    : whatsgTaskSaveTemplate($conn, $label, $templateName, $variables, $mediaType);
+                if ($saved) {
+                    $message = $operation === 'update' ? 'Template updated.' : 'Approved template added.';
+                    $templates = whatsgTaskTemplates($conn);
+                    $editLabel = $operation === 'update' ? $originalLabel : '';
+                    $editTemplate = isset($templates[$editLabel]) ? $templates[$editLabel] : null;
+                    $formVariables = $editTemplate ? array_values($editTemplate['variables']) : array('');
+                    if (!$formVariables) $formVariables = array('');
+                } elseif (isset($templates[$label])) {
+                    $message = 'The template dropdown label "' . $label . '" is already in use. Choose a different label, or remove the existing template first.';
                     $messageType = 'danger';
                 } else {
-                    $newLine = "WHATSG_TEMPLATES_JSON='" . $json . "'";
-                    $file = fopen($envPath, 'c+');
-                    if (!$file || !flock($file, LOCK_EX)) {
-                        if ($file) fclose($file);
-                        $message = 'Could not lock the .env file for updating.';
-                        $messageType = 'danger';
-                    } else {
-                        rewind($file);
-                        $currentContents = stream_get_contents($file);
-                        $updated = preg_replace_callback('/^WHATSG_TEMPLATES_JSON\\s*=.*$/m', function () use ($newLine) { return $newLine; }, (string)$currentContents, 1, $replaceCount);
-                        if ($replaceCount === 0) $updated = rtrim((string)$currentContents, "\r\n") . PHP_EOL . $newLine . PHP_EOL;
-                        rewind($file);
-                        $written = ftruncate($file, 0) && fwrite($file, $updated) === strlen($updated) && fflush($file);
-                        flock($file, LOCK_UN);
-                        fclose($file);
-                        if (!$written) {
-                            $message = 'The template list could not be saved to .env.';
-                            $messageType = 'danger';
-                        } else {
-                            $message = $operation === 'delete' ? 'Template removed.' : 'Approved template added.';
-                            putenv('WHATSG_TEMPLATES_JSON=' . $json);
-                            $_ENV['WHATSG_TEMPLATES_JSON'] = $json;
-                        }
-                    }
+                    $message = 'The template could not be saved to the database.';
+                    $messageType = 'danger';
                 }
             }
         }
@@ -112,7 +95,7 @@ include "include/header.php";
   </header>
 
   <section class="panel">
-    <header class="panel-heading"><h2 class="panel-title">Add an approved template</h2></header>
+    <header class="panel-heading"><h2 class="panel-title"><?=$editTemplate ? 'Edit approved template' : 'Add an approved template';?></h2></header>
     <div class="panel-body">
       <?php if ($message !== ''): ?>
         <div class="alert alert-<?=htmlspecialchars($messageType, ENT_QUOTES, 'UTF-8');?>"><?=htmlspecialchars($message, ENT_QUOTES, 'UTF-8');?></div>
@@ -120,31 +103,32 @@ include "include/header.php";
       <p>Enter the exact template name approved by Meta. Variables are optional. If the template has placeholders, add them in order: the first fills <code>{{1}}</code>, the second fills <code>{{2}}</code>, and so on. A template without placeholders is saved with an empty <code>exampleArr</code>.</p>
       <form method="post" class="form-horizontal">
         <input type="hidden" name="csrfToken" value="<?=htmlspecialchars($_SESSION['whatsAppTemplatesCsrf'], ENT_QUOTES, 'UTF-8');?>">
-        <input type="hidden" name="operation" value="add">
+        <input type="hidden" name="operation" value="<?=$editTemplate ? 'update' : 'add';?>">
+        <?php if ($editTemplate): ?><input type="hidden" name="originalLabel" value="<?=htmlspecialchars($editLabel, ENT_QUOTES, 'UTF-8');?>"><?php endif; ?>
         <div class="form-group">
           <label class="col-md-2 control-label" for="templateLabel">Dropdown label</label>
-          <div class="col-md-8"><input class="form-control" id="templateLabel" name="label" maxlength="100" required placeholder="Shipment schedule"></div>
+          <div class="col-md-8"><input class="form-control" id="templateLabel" name="label" maxlength="100" required placeholder="Shipment schedule" value="<?=htmlspecialchars($editLabel, ENT_QUOTES, 'UTF-8');?>" <?=$editTemplate ? 'readonly' : '';?>></div>
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label" for="templateName">Approved template name</label>
-          <div class="col-md-8"><input class="form-control" id="templateName" name="templateName" maxlength="150" required placeholder="shipment_schedule"></div>
+          <div class="col-md-8"><input class="form-control" id="templateName" name="templateName" maxlength="150" required placeholder="shipment_schedule" value="<?=htmlspecialchars((string)($editTemplate['name'] ?? ''), ENT_QUOTES, 'UTF-8');?>"></div>
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label" for="mediaType">Media header</label>
-          <div class="col-md-8"><select class="form-control" id="mediaType" name="mediaType"><option value="">No media header</option><option value="image">Image</option><option value="document">Document (PDF/ZIP)</option></select><p class="help-block">Choose the media type configured in the approved WhatsApp template. Task messages use the first matching attached file as <code>mediaUri</code>. Image headers require an image template; PDF and ZIP headers use a document template.</p></div>
+          <div class="col-md-8"><select class="form-control" id="mediaType" name="mediaType"><option value="" <?=!$editTemplate || whatsgTemplateMediaType($editTemplate) === '' ? 'selected' : '';?>>No media header</option><option value="image" <?=whatsgTemplateMediaType($editTemplate ?? array()) === 'image' ? 'selected' : '';?>>Image</option><option value="document" <?=whatsgTemplateMediaType($editTemplate ?? array()) === 'document' ? 'selected' : '';?>>Document (PDF/ZIP)</option></select><p class="help-block">Choose the media type configured in the approved WhatsApp template. Task messages use the first matching attached file as <code>mediaUri</code>. Image headers require an image template; PDF and ZIP headers use a document template.</p></div>
         </div>
         <div class="form-group">
           <label class="col-md-2 control-label">Template variables</label>
           <div class="col-md-8">
             <div id="templateVariables">
-              <div class="row template-variable-row" style="margin-bottom:8px">
+              <?php foreach ($formVariables as $variableIndex => $formVariable): ?><div class="row template-variable-row" style="margin-bottom:8px">
                 <div class="col-sm-9"><select class="form-control" name="variables[]">
-                  <option value="">Select variable for {{1}}</option>
-                  <?php foreach ($mergeTags as $mergeTag): ?><option value="<?=htmlspecialchars($mergeTag, ENT_QUOTES, 'UTF-8');?>"><?=htmlspecialchars('{' . $mergeTag . '}', ENT_QUOTES, 'UTF-8');?></option><?php endforeach; ?>
-                  <option value="custom">Assign Custom {{1}}</option>
+                  <option value="">Select variable for {{<?=$variableIndex + 1;?>}}</option>
+                  <?php foreach ($mergeTags as $mergeTag): ?><option value="<?=htmlspecialchars($mergeTag, ENT_QUOTES, 'UTF-8');?>" <?=$formVariable === $mergeTag ? 'selected' : '';?>><?=htmlspecialchars('{' . $mergeTag . '}', ENT_QUOTES, 'UTF-8');?></option><?php endforeach; ?>
+                  <option value="custom" <?=$formVariable === 'custom' ? 'selected' : '';?>>Assign Custom {{<?=$variableIndex + 1;?>}}</option>
                 </select></div>
                 <div class="col-sm-3"><button type="button" class="btn btn-danger remove-variable">Remove</button></div>
-              </div>
+              </div><?php endforeach; ?>
             </div>
             <button type="button" class="btn btn-default" id="addVariable"><i class="fa fa-plus"></i> Add variable</button>
             <p class="help-block" id="emptyVariablesNotice" style="display:none">No variables selected. This is okay for templates without placeholders.</p>
@@ -152,7 +136,7 @@ include "include/header.php";
           </div>
         </div>
         <div class="form-group">
-          <div class="col-md-8 col-md-offset-2"><button type="submit" class="btn btn-primary">Save template</button> <a class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=add">Back to tasks</a></div>
+          <div class="col-md-8 col-md-offset-2"><button type="submit" class="btn btn-primary"><?=$editTemplate ? 'Save changes' : 'Save template';?></button> <?php if ($editTemplate): ?><a class="btn btn-default" href="whatsapp_templates.php">Cancel edit</a> <?php endif; ?><a class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=add">Back to tasks</a></div>
         </div>
       </form>
     </div>
@@ -164,7 +148,7 @@ include "include/header.php";
       <?php if ($templates): ?>
       <div class="table-responsive">
         <table class="table table-striped table-hover">
-          <thead><tr><th>Dropdown label</th><th>Approved template name</th><th>Media header</th><th>Variables in order</th><th>Remove</th></tr></thead>
+          <thead><tr><th>Dropdown label</th><th>Approved template name</th><th>Media header</th><th>Variables in order</th><th>Actions</th></tr></thead>
           <tbody>
           <?php foreach ($templates as $templateLabel => $templateConfig): ?>
             <tr>
@@ -172,7 +156,7 @@ include "include/header.php";
               <td><?=htmlspecialchars((string)$templateConfig['name'], ENT_QUOTES, 'UTF-8');?></td>
               <td><?php $configuredMediaType = whatsgTemplateMediaType($templateConfig); echo $configuredMediaType === 'document' ? 'Document (PDF/ZIP)' : ($configuredMediaType === 'image' ? 'Image' : 'No'); ?></td>
               <td><?=htmlspecialchars(implode(' → ', array_map(function ($variable) { return $variable === 'custom' ? 'Custom' : '{' . $variable . '}'; }, $templateConfig['variables'])), ENT_QUOTES, 'UTF-8');?></td>
-              <td>
+              <td><a class="btn btn-xs btn-default" href="whatsapp_templates.php?edit=<?=rawurlencode((string)$templateLabel);?>">Edit</a>
                 <form method="post" onsubmit="return confirm('Remove this WhatsApp template?');">
                   <input type="hidden" name="csrfToken" value="<?=htmlspecialchars($_SESSION['whatsAppTemplatesCsrf'], ENT_QUOTES, 'UTF-8');?>">
                   <input type="hidden" name="operation" value="delete">

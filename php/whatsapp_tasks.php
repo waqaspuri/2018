@@ -1,19 +1,78 @@
 <?php
 require_once __DIR__ . '/mail_config.php';
 
-function whatsgTaskTemplates()
+function whatsgTaskEnsureTemplateStorage($conn)
 {
-    loadMailEnvironment();
-    $raw = trim(mailEnvironmentValue('WHATSG_TEMPLATES_JSON', '{}'));
-    if (strlen($raw) >= 2 && (($raw[0] === "'" && substr($raw, -1) === "'") || ($raw[0] === '"' && substr($raw, -1) === '"'))) {
-        $raw = substr($raw, 1, -1);
+    if (!$conn instanceof mysqli) return false;
+    $schema = mysqli_query($conn, "CREATE TABLE IF NOT EXISTS whatsapp_templates (
+        templateLabel VARCHAR(100) COLLATE utf8mb4_bin NOT NULL,
+        templateName VARCHAR(150) NOT NULL,
+        mediaType VARCHAR(20) NOT NULL DEFAULT '',
+        variablesJson TEXT NOT NULL,
+        createdDate DATETIME NOT NULL,
+        modifiedDate DATETIME NOT NULL,
+        PRIMARY KEY (templateLabel)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if (!$schema) return false;
+    return true;
+}
+
+function whatsgTaskTemplates($db = null)
+{
+    if ($db === null) {
+        global $conn;
+        $db = $conn;
     }
-    $templates = json_decode($raw, true);
-    if (!is_array($templates)) return array();
-    foreach ($templates as $label => $template) {
-        if (!is_array($template) || empty($template['name']) || !isset($template['variables']) || !is_array($template['variables'])) unset($templates[$label]);
+    if (!whatsgTaskEnsureTemplateStorage($db)) return array();
+    $result = mysqli_query($db, 'SELECT templateLabel, templateName, mediaType, variablesJson FROM whatsapp_templates ORDER BY templateLabel ASC');
+    if (!$result) return array();
+    $templates = array();
+    while ($row = mysqli_fetch_assoc($result)) {
+        $variables = json_decode((string)$row['variablesJson'], true);
+        if (!is_array($variables)) $variables = array();
+        $template = array('name' => (string)$row['templateName'], 'variables' => array_values($variables), 'mediaType' => (string)$row['mediaType']);
+        if ($template['mediaType'] === 'image') $template['supportsMedia'] = true;
+        $templates[(string)$row['templateLabel']] = $template;
     }
+    mysqli_free_result($result);
     return $templates;
+}
+
+function whatsgTaskSaveTemplate($conn, $label, $templateName, $variables, $mediaType)
+{
+    if (!whatsgTaskEnsureTemplateStorage($conn)) return false;
+    $variablesJson = json_encode(array_values($variables), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($variablesJson === false) return false;
+    $statement = mysqli_prepare($conn, 'INSERT INTO whatsapp_templates (templateLabel, templateName, mediaType, variablesJson, createdDate, modifiedDate) VALUES (?, ?, ?, ?, NOW(), NOW())');
+    if (!$statement) return false;
+    mysqli_stmt_bind_param($statement, 'ssss', $label, $templateName, $mediaType, $variablesJson);
+    $saved = mysqli_stmt_execute($statement);
+    mysqli_stmt_close($statement);
+    return $saved;
+}
+
+function whatsgTaskUpdateTemplate($conn, $originalLabel, $templateName, $variables, $mediaType)
+{
+    if (!whatsgTaskEnsureTemplateStorage($conn)) return false;
+    $variablesJson = json_encode(array_values($variables), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($variablesJson === false) return false;
+    $statement = mysqli_prepare($conn, 'UPDATE whatsapp_templates SET templateName = ?, mediaType = ?, variablesJson = ?, modifiedDate = NOW() WHERE templateLabel = ?');
+    if (!$statement) return false;
+    mysqli_stmt_bind_param($statement, 'ssss', $templateName, $mediaType, $variablesJson, $originalLabel);
+    $saved = mysqli_stmt_execute($statement) && mysqli_stmt_affected_rows($statement) >= 0;
+    mysqli_stmt_close($statement);
+    return $saved;
+}
+
+function whatsgTaskDeleteTemplate($conn, $label)
+{
+    if (!whatsgTaskEnsureTemplateStorage($conn)) return false;
+    $statement = mysqli_prepare($conn, 'DELETE FROM whatsapp_templates WHERE templateLabel = ?');
+    if (!$statement) return false;
+    mysqli_stmt_bind_param($statement, 's', $label);
+    $deleted = mysqli_stmt_execute($statement) && mysqli_stmt_affected_rows($statement) === 1;
+    mysqli_stmt_close($statement);
+    return $deleted;
 }
 
 function whatsgTaskMergeTagNames()
@@ -122,7 +181,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         return array(false, 'WhatsApp is not enabled for this task.');
     }
 
-    $templates = whatsgTaskTemplates();
+    $templates = whatsgTaskTemplates($conn);
     if (!isset($templates[$templateKey])) {
         whatsgTaskLog($taskID, $templateKey, 'error', array('detail' => 'No configured template matches the task selection'));
         return array(false, 'Select a configured WhatsApp template for this task.');

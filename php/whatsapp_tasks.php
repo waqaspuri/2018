@@ -152,10 +152,6 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
 {
     loadMailEnvironment();
     $debugPayload = mailEnvironmentValue('WHATSG_DEBUG_PAYLOAD') === '1';
-    if ($debugPayload && !$manualPreview) {
-        whatsgTaskLog($taskID, '', 'skipped', array('detail' => 'Debug preview is enabled; non-button WhatsApp sends are paused'));
-        return array(false, 'WhatsApp debug preview is active. Use the Preview Payload button; scheduled sends are paused.');
-    }
     $apiKey = mailEnvironmentValue('WHATSG_API_KEY');
     $token = mailEnvironmentValue('WHATSG_TOKEN');
     if ($token === '') $token = $apiKey;
@@ -323,7 +319,25 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             $payloadPreviews[] = $preview;
             continue;
         }
-        $curl = curl_init('https://whatsg.com/api/v1/send_templet');
+        $requestUrl = 'https://whatsg.com/api/v1/send_templet';
+        if ($debugPayload) {
+            $debugBody = $body;
+            $debugBody['token'] = '[REDACTED; configured in .env]';
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(array(
+                'debug' => true,
+                'message' => 'No API request was sent. This is the request prepared for WhatsApp.',
+                'task_id' => (int)$taskID,
+                'method' => 'POST',
+                'url' => $requestUrl,
+                'headers' => array('Content-Type' => 'application/json', 'Authorization' => 'Bearer [REDACTED; configured in .env]'),
+                'body' => $debugBody,
+                'attachment_names' => $attachmentNames,
+                'media_type' => $mediaType
+            ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            die();
+        }
+        $curl = curl_init($requestUrl);
         curl_setopt_array($curl, array(
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,

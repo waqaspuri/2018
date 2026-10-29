@@ -119,7 +119,7 @@ function buildBulkWhatsAppPreviews($conn, $ids, $templateKey, $templates, $campa
         foreach ($variables as $index => $variable) {
             $exampleArr[] = in_array($variable, $recipientFields, true) ? $contactValues[$variable] : trim((string)$campaignValues[$index]);
         }
-        $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $exampleArr, 'token' => '[configured in .env]');
+        $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $exampleArr, 'token' => '[configured in .env]', 'enableLog' => true);
         if ($mediaUri !== '') $body['mediaUri'] = $mediaUri;
         $payloads[] = array('recipient' => $name, 'body' => $body);
     }

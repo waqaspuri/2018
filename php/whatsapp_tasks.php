@@ -304,7 +304,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             $debugVariables[] = array('merge_tag' => '{' . $variable . '}', 'value' => (string)$recipientValues[$variable]);
         }
 
-        $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $recipientExampleArr, 'token' => $token);
+        $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $recipientExampleArr, 'token' => $token, 'enableLog' => true);
         if ($mediaUri !== '') $body['mediaUri'] = $mediaUri;
         if ($manualPreview) {
             whatsgTaskDispatchLog($phone, $body['templetName'], $recipientExampleArr, 'PREVIEW: not sent', (string)($body['mediaUri'] ?? ''));

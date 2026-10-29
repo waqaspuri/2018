@@ -306,23 +306,30 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
 
         $body = array('sendTo' => $phone, 'templetName' => (string)$template['name'], 'exampleArr' => $recipientExampleArr, 'token' => $token, 'enableLog' => true);
         if ($mediaUri !== '') $body['mediaUri'] = $mediaUri;
+        $requestUrl = 'https://whatsg.com/api/v1/send_templet';
+        $requestJson = json_encode($body);
+        $curlCommand = 'curl --request POST ' . escapeshellarg($requestUrl)
+            . ' --header ' . escapeshellarg('Content-Type: application/json')
+            . ' --header ' . escapeshellarg('Authorization: Bearer ' . $apiKey)
+            . ' --data-raw ' . escapeshellarg($requestJson);
         if ($manualPreview) {
             whatsgTaskDispatchLog($phone, $body['templetName'], $recipientExampleArr, 'PREVIEW: not sent', (string)($body['mediaUri'] ?? ''));
             $preview = array(
                 'customer_id' => (int)$customerID,
                 'headers' => array('Content-Type' => 'application/json', 'Authorization' => 'Bearer [REDACTED]'),
                 'body' => array('sendTo' => $phone, 'templetName' => $body['templetName'], 'exampleArr' => $recipientExampleArr, 'token' => '[REDACTED; configured in .env]') + (isset($body['mediaUri']) ? array('mediaUri' => $body['mediaUri']) : array()),
-                'variables' => $debugVariables
+                'variables' => $debugVariables,
+                'curl' => $curlCommand
             );
             if ($attachmentNames) $preview['attachment_names'] = $attachmentNames;
             if ($mediaType !== '') $preview['media_type'] = $mediaType;
             $payloadPreviews[] = $preview;
             continue;
         }
-        $requestUrl = 'https://whatsg.com/api/v1/send_templet';
         if ($debugPayload) {
             $debugBody = $body;
             $debugBody['token'] = '[REDACTED; configured in .env]';
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(array(
                 'debug' => true,
@@ -333,7 +340,8 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
                 'headers' => array('Content-Type' => 'application/json', 'Authorization' => 'Bearer [REDACTED; configured in .env]'),
                 'body' => $debugBody,
                 'attachment_names' => $attachmentNames,
-                'media_type' => $mediaType
+                'media_type' => $mediaType,
+                'curl' => $curlCommand
             ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             die();
         }
@@ -344,7 +352,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT => 25,
             CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'Authorization: Bearer ' . $apiKey),
-            CURLOPT_POSTFIELDS => json_encode($body)
+            CURLOPT_POSTFIELDS => $requestJson
         ));
         $response = curl_exec($curl);
         $httpCode = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -376,6 +384,7 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         $sent++;
     }
     if ($manualPreview) {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(array(
             'debug' => true,

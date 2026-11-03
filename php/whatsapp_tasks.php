@@ -246,16 +246,12 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             $detail = 'This WhatsApp template has media enabled, but no attached PDF, ZIP, or image was found.';
             whatsgTaskLog($taskID, $template['name'], 'error', array('detail' => $detail, 'media_type' => $mediaType));
             if ($manualPreview) {
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(array(
-                    'debug' => true,
-                    'message' => 'No API requests were sent. This is a preview only.',
+                return array(false, $detail, array(
                     'selected_contacts' => count($customerIDs),
                     'payload_count' => 0,
                     'payloads' => array(),
                     'errors' => array(array('error' => $detail))
-                ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                die();
+                ));
             }
             return array(false, $detail);
         }
@@ -314,12 +310,17 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
             . ' --data-raw ' . escapeshellarg($requestJson);
         if ($manualPreview) {
             whatsgTaskDispatchLog($phone, $body['templetName'], $recipientExampleArr, 'PREVIEW: not sent', (string)($body['mediaUri'] ?? ''));
+            $previewBody = $body;
+            $previewBody['token'] = '[REDACTED; configured in .env]';
             $preview = array(
                 'customer_id' => (int)$customerID,
+                'recipient' => trim((string)($customerInfo['applicantName'] ?? '')),
+                'company' => trim((string)($customerInfo['companyName'] ?? '')),
+                'method' => 'POST',
+                'url' => $requestUrl,
                 'headers' => array('Content-Type' => 'application/json', 'Authorization' => 'Bearer [REDACTED]'),
-                'body' => array('sendTo' => $phone, 'templetName' => $body['templetName'], 'exampleArr' => $recipientExampleArr, 'token' => '[REDACTED; configured in .env]') + (isset($body['mediaUri']) ? array('mediaUri' => $body['mediaUri']) : array()),
-                'variables' => $debugVariables,
-                'curl' => $curlCommand
+                'body' => $previewBody,
+                'variables' => $debugVariables
             );
             if ($attachmentNames) $preview['attachment_names'] = $attachmentNames;
             if ($mediaType !== '') $preview['media_type'] = $mediaType;
@@ -384,17 +385,13 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         $sent++;
     }
     if ($manualPreview) {
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(array(
-            'debug' => true,
-            'message' => 'No API requests were sent. This is a preview only.',
+        $previewData = array(
             'selected_contacts' => count($customerIDs),
             'payload_count' => count($payloadPreviews),
             'payloads' => $payloadPreviews,
             'errors' => $previewErrors
-        ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        die();
+        );
+        return array(true, 'No API requests were sent. This is a preview only.', $previewData);
     }
     if ($sent === 0) {
         whatsgTaskLog($taskID, $template['name'], 'error', array('detail' => 'No messages were sent', 'failed_contacts' => $failed));

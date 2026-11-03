@@ -661,8 +661,47 @@ header("location: tasks.php?action=view&id=".$_GET['id']."&act=2");
 if (isset($_GET['action']) && $_GET['action'] === 'WhatsAppPreview') {
     $taskID = (int)($_GET['id'] ?? 0);
     $whatsAppResult = sendTaskWhatsApp($conn, $taskID, true);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(array('debug' => true, 'message' => $whatsAppResult[1], 'payload_count' => 0, 'payloads' => array()), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $previewData = isset($whatsAppResult[2]) && is_array($whatsAppResult[2]) ? $whatsAppResult[2] : array(
+        'selected_contacts' => 0,
+        'payload_count' => 0,
+        'payloads' => array(),
+        'errors' => array(array('error' => (string)$whatsAppResult[1]))
+    );
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Content-Type: text/html; charset=utf-8');
+    $payloads = isset($previewData['payloads']) && is_array($previewData['payloads']) ? $previewData['payloads'] : array();
+    $previewErrors = isset($previewData['errors']) && is_array($previewData['errors']) ? $previewData['errors'] : array();
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp API Payload — Task #<?=(int)$taskID?></title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7f6;color:#263238;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:980px;margin:0 auto;padding:32px 20px 48px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}h1{font-size:24px;line-height:1.25;margin:0 0 6px}.sub{color:#607d8b;margin:0}.badge{white-space:nowrap;background:#e2f4ea;color:#167445;border:1px solid #b8e2ca;border-radius:999px;padding:6px 11px;font-weight:600}.notice,.error{border-radius:8px;padding:12px 14px;margin:0 0 16px}.notice{background:#eef7ff;border:1px solid #c9e3f7;color:#285b78}.error{background:#fff1f0;border:1px solid #f0c6c2;color:#a2372d}.card{background:#fff;border:1px solid #dce4e7;border-radius:10px;box-shadow:0 2px 8px rgba(38,50,56,.06);margin:0 0 12px;overflow:hidden}.card[open]{box-shadow:0 4px 14px rgba(38,50,56,.1)}.card-head{padding:15px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none}.card-head::-webkit-details-marker{display:none}.card-head:before{content:'\25B6';color:#78909c;font-size:11px;transition:transform .15s ease}.card[open]>.card-head{border-bottom:1px solid #e8edef}.card[open]>.card-head:before{transform:rotate(90deg)}.contact{flex:1;min-width:0}.card-head h2{font-size:16px;margin:0}.meta{color:#607d8b;font-size:13px;margin-top:3px}.method{font:700 12px/1 monospace;background:#e8f5ee;color:#177044;border-radius:4px;padding:7px 8px;height:max-content}.section{padding:15px 18px;border-bottom:1px solid #edf1f2}.section:last-child{border:0}.label{display:block;color:#607d8b;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}.endpoint{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}.values{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 18px}.values li{min-width:0}.values code{color:#455a64;word-break:break-word}pre{margin:0;background:#172126;color:#d8e6e0;border-radius:7px;padding:14px;overflow:auto;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.empty{background:#fff;border:1px dashed #c8d2d6;border-radius:10px;padding:28px;text-align:center;color:#607d8b}@media(max-width:600px){.wrap{padding:20px 12px}.top{display:block}.badge{display:inline-block;margin-top:10px}.card-head{gap:10px}.method{display:none}}
+</style>
+</head>
+<body><main class="wrap">
+<div class="top"><div><h1>WhatsApp API payload</h1><p class="sub">Task #<?=(int)$taskID?> · exact request prepared for the WhatsApp button</p></div><span class="badge"><?=count($payloads)?> payload<?=count($payloads) === 1 ? '' : 's'?></span></div>
+<div class="notice">Preview only — nothing was sent. Secret credentials are masked; all other payload fields and values match the API request.</div>
+<?php foreach ($previewErrors as $previewError): ?><div class="error"><?=htmlspecialchars((string)($previewError['error'] ?? 'Unable to prepare payload.'), ENT_QUOTES, 'UTF-8')?></div><?php endforeach; ?>
+<?php if (!$payloads): ?><div class="empty"><?=htmlspecialchars((string)$whatsAppResult[1], ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+<?php foreach ($payloads as $index => $payload):
+    $recipient = trim((string)($payload['recipient'] ?? ''));
+    $company = trim((string)($payload['company'] ?? ''));
+    $body = isset($payload['body']) && is_array($payload['body']) ? $payload['body'] : array();
+    $variables = isset($payload['variables']) && is_array($payload['variables']) ? $payload['variables'] : array();
+?>
+<details class="card">
+<summary class="card-head"><div class="contact"><h2><?=htmlspecialchars($recipient !== '' ? $recipient : 'Recipient ' . ($index + 1), ENT_QUOTES, 'UTF-8')?></h2><div class="meta"><?=htmlspecialchars($company !== '' ? $company . ' · ' : '', ENT_QUOTES, 'UTF-8')?><?=htmlspecialchars((string)($body['sendTo'] ?? ''), ENT_QUOTES, 'UTF-8')?></div></div><span class="method">POST</span></summary>
+<div class="section"><span class="label">Endpoint</span><div class="endpoint"><?=htmlspecialchars((string)($payload['url'] ?? ''), ENT_QUOTES, 'UTF-8')?></div></div>
+<?php if ($variables): ?><div class="section"><span class="label">Template values</span><ul class="values"><?php foreach ($variables as $position => $variable): ?><li><strong>{{<?=$position + 1?>}}</strong> <code><?=htmlspecialchars((string)($variable['value'] ?? ''), ENT_QUOTES, 'UTF-8')?></code> <span class="meta"><?=htmlspecialchars((string)($variable['merge_tag'] ?? ''), ENT_QUOTES, 'UTF-8')?></span></li><?php endforeach; ?></ul></div><?php endif; ?>
+<div class="section"><span class="label">Exact JSON body</span><pre><?=htmlspecialchars((string)json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8')?></pre></div>
+</details>
+<?php endforeach; ?>
+</main></body></html>
+<?php
     exit;
 }
 
@@ -942,7 +981,7 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <?php if (in_array('mail', $sendByAry, true)): ?><a onclick="return confirm('Are you sure you want send Email?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=mail&id=<?=$id?>" title="Send Email Notification"><b>Mail</b></a>  &nbsp;<?php endif; ?>
 <?php if (in_array('sms', $sendByAry, true)): ?><a title="Send SMS Notification" onclick="return confirm('Are you sure you want send SMS?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=SMS&id=<?=$id?>"><b>SMS</b></a><?php endif; ?>
 <?php if (in_array('whatsapp', $sendByAry, true)): ?>
-&nbsp;<a title="Preview WhatsApp payload without sending" onclick="return confirm('Preview payloads for all assigned contacts? No API messages will be sent.');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=WhatsAppPreview&amp;id=<?=(int)$id?>"><b>Preview Payload</b></a>
+&nbsp;<a title="Open the exact WhatsApp API payload in a new window" class="btn btn-default" target="_blank" rel="noopener" href="<?=$siteUrl;?>tasks.php?action=WhatsAppPreview&amp;id=<?=(int)$id?>"><b>View Payload</b></a>
 &nbsp;<a title="Send WhatsApp template" onclick="return confirm('Send WhatsApp template to all assigned contacts?');" class="btn btn-success" href="<?=$siteUrl;?>tasks.php?action=WhatsApp&amp;id=<?=(int)$id?>"><b>WhatsApp</b></a>
 <?php endif; ?>
 

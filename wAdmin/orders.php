@@ -2,6 +2,10 @@
 require_once "include/sessionAdmin.php";
 require_once "include/configure.php";
 require_once "../php/lead_pipeline.php";
+$sqlStatusTextColorColumn = mysqli_query($conn, "SHOW COLUMNS FROM status LIKE 'textColor'");
+if ($sqlStatusTextColorColumn && mysqli_num_rows($sqlStatusTextColorColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE status ADD COLUMN textColor VARCHAR(20) NULL DEFAULT NULL AFTER bgColor");
+}
 
 function ordersPublicFileUrl($fileName)
 {
@@ -1590,7 +1594,7 @@ if(isset($_GET['q']) && $_GET['q']!=""){
         OR p.prodName LIKE '%" . $searchTerm . "%') ";
 }
 $sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,c.applicantName,v.applicantName as vdr,o.dta,o.eta,o.newETA,o.id,o.invoiceNo,p.prodName,o.createdDate,o.modifiedDate,o.statusID,
-    s.status AS statusName,s.bgColor AS statusColor,COALESCE(notes.noteCount,0) AS noteCount,
+    s.status AS statusName,s.bgColor AS statusColor,s.textColor AS statusTextColor,COALESCE(notes.noteCount,0) AS noteCount,
     GREATEST(
         COALESCE(o.modifiedDate,o.createdDate),
         COALESCE(notes.lastNoteActivity,o.createdDate),
@@ -1644,7 +1648,12 @@ $statusColor = trim((string)$rows['statusColor']);
 if (!preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusColor)) {
     $statusColor = '#ffffff';
 }
-echo '<style type="text/css">table.orders-table > tbody > tr.statusBgTD'.$sno.' > td.order-status-cell{background-color:'.$statusColor.' !important;}</style>';
+$statusTextColor = trim((string)($rows['statusTextColor'] ?? ''));
+$statusTextStyle = '';
+if (preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusTextColor)) {
+    $statusTextStyle = 'color:'.$statusTextColor.' !important;';
+}
+echo '<style type="text/css">table.orders-table > tbody > tr.statusBgTD'.$sno.' > td.order-status-cell{background-color:'.$statusColor.' !important;'.$statusTextStyle.'}</style>';
 echo '<tr class="statusBgTD'.$sno.' order-row">
 <td>&nbsp; '.$sno.'</td>
 <td>'.$rows['invoiceNo'].((isset($mergedInvoiceMap[$rows['invoiceNo']]) && $mergedInvoiceMap[$rows['invoiceNo']] > 1) ? ' <span class="label label-warning">Merged</span>' : '').'<strong><br>'.$rows['documentOrderNo'].'</strong></td>

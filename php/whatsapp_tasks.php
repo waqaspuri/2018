@@ -164,12 +164,15 @@ function sendTaskWhatsApp($conn, $taskID, $manualPreview = false)
         return array(false, 'PHP cURL is not available.');
     }
 
-    $taskResult = mysqli_query($conn, "SELECT t.assignTo,t.sendBy,t.taskWhatsAppTemplate,t.attachmentFile,t.attachmentName,o.unitPrice,o.quantity,o.totalAmt,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName
+    $taskResult = mysqli_query($conn, "SELECT t.isDraft,t.assignTo,t.sendBy,t.taskWhatsAppTemplate,t.attachmentFile,t.attachmentName,o.unitPrice,o.quantity,o.totalAmt,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName
         FROM tasks t LEFT JOIN orders o ON o.id=t.orderID LEFT JOIN products p ON p.id=o.productID WHERE t.id=" . (int)$taskID . " LIMIT 1");
     $task = $taskResult ? mysqli_fetch_assoc($taskResult) : false;
     if (!$task) {
         whatsgTaskLog($taskID, '', 'error', array('detail' => 'Task could not be found'));
         return array(false, 'Task could not be found.');
+    }
+    if (!$manualPreview && (int)$task['isDraft'] === 1) {
+        return array(false, 'This task is a draft. Change Status to Send and save before sending.');
     }
     $templateKey = (string)$task['taskWhatsAppTemplate'];
     if (!in_array('whatsapp', explode(',', (string)$task['sendBy']), true)) {

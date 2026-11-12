@@ -1,7 +1,8 @@
 <?php
-/** Ensure cron jobs can safely run only one reminder of each type per task. */
+/** Ensure task delivery status and reminder tracking are available. */
 function ensureTaskReminderTracking($conn) {
     $columns = array(
+        'isDraft' => "ALTER TABLE tasks ADD COLUMN isDraft TINYINT(1) NOT NULL DEFAULT 0",
         'firstReminderSentAt' => "ALTER TABLE tasks ADD COLUMN firstReminderSentAt DATETIME NULL",
         'secondReminderSentAt' => "ALTER TABLE tasks ADD COLUMN secondReminderSentAt DATETIME NULL"
     );

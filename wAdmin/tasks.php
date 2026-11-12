@@ -158,70 +158,7 @@ function saveTaskTemplatesFromPost($conn, $emailTemplateId, $smsTemplateId) {
 }
 
 
-// End of SendinBlue //
-
-
-
-
-if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
-if(isset($_POST['action']) && $_POST['action']=="add"){
-
-$sendBy = isset($_POST['sendBy']) && is_array($_POST['sendBy']) ? $_POST['sendBy'] : [];
-
-$isExpired = "0";
-if(in_array('immediate', $sendBy)){
-    $isExpired = "1";
-}
-
-// Handle dates, setting to a valid default if empty
-$repeatDate = isset($_POST['repeatDate']) ? $_POST['repeatDate'] : '';
-if(in_array('immediate', $sendBy)){
-    $repeatDate = '';
-}
-$repeatDateForSql = !empty($repeatDate) ? sqlDtFormat($repeatDate) : '1970-01-01';
-$repeatDateSql = "'" . mysqli_real_escape_string($conn, $repeatDateForSql) . "'";
-
-$dueDate = isset($_POST['dueDate']) ? $_POST['dueDate'] : '';
-$dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
-$dueDateSql = "'" . mysqli_real_escape_string($conn, $dueDateForSql) . "'";
-
-$taskSMSID = !empty($_POST['taskSMSID']) ? mysqli_real_escape_string($conn, $_POST['taskSMSID']) : '0';
-$taskWhatsAppTemplate = isset($_POST['taskWhatsAppTemplate']) && is_string($_POST['taskWhatsAppTemplate']) && isset($whatsAppTemplates[$_POST['taskWhatsAppTemplate']]) ? mysqli_real_escape_string($conn, $_POST['taskWhatsAppTemplate']) : '';
-$taskMessageID = !empty($_POST['taskMessageID']) ? mysqli_real_escape_string($conn, $_POST['taskMessageID']) : '0';
-$orderID = !empty($_POST['orderID']) ? mysqli_real_escape_string($conn, $_POST['orderID']) : '0';
-$currentStatusID = !empty($_POST['currentStatusID']) ? mysqli_real_escape_string($conn, $_POST['currentStatusID']) : '0';
-$subject = isset($_POST['subject']) ? mysqli_real_escape_string($conn, $_POST['subject']) : '';
-$priorityID = !empty($_POST['priorityID']) ? mysqli_real_escape_string($conn, $_POST['priorityID']) : '';
-$priorityIDSql = ($priorityID !== '') ? "'" . $priorityID . "'" : "NULL";
-$assignTo = isset($_POST['assignTo']) ? mysqli_real_escape_string($conn, @implode(",", $_POST['assignTo'])) : '';
-$isSecondReminder = isset($_POST['isSecondReminder']) ? mysqli_real_escape_string($conn, $_POST['isSecondReminder']) : '0';
-$taskMessage = isset($_POST['taskMessage']) ? mysqli_real_escape_string($conn, $_POST['taskMessage']) : '';
-$taskSMS = isset($_POST['taskSMS']) ? mysqli_real_escape_string($conn, $_POST['taskSMS']) : '';
-$sendByStr = mysqli_real_escape_string($conn, @implode(",", $sendBy));
-$attachmentError = '';
-if (in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
-    header('location: tasks.php?action=add&whatsappError=template');
-    exit;
-}
-$attachments = saveTaskAttachments(isset($_FILES['taskAttachments']) ? $_FILES['taskAttachments'] : null, $attachmentError);
-if ($attachments === false) {
-    header('location: tasks.php?action=add&uploadError=' . rawurlencode($attachmentError));
-    exit;
-}
-$attachmentFile = mysqli_real_escape_string($conn, !empty($attachments[0][0]) ? $attachments[0][0] : '');
-$attachmentName = mysqli_real_escape_string($conn, !empty($attachments[0][1]) ? $attachments[0][1] : '');
-
-mysqli_query($conn,"INSERT INTO tasks (isExpired,taskSMSID,taskWhatsAppTemplate,taskMessageID,repeatDate,orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
-('".$isExpired."','".$taskSMSID."','".$taskWhatsAppTemplate."','".$taskMessageID."',".$repeatDateSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
-$taskID = mysqli_insert_id($conn);
-saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
-foreach ($attachments as $attachment) {
-    mysqli_query($conn, "INSERT INTO task_attachments (taskID,fileName,storedFile,createdDate) VALUES ('" . $taskID . "','" . mysqli_real_escape_string($conn, $attachment[1]) . "','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . gmdate('Y-m-d H:i:s') . "')");
-    if ((int)$orderID > 0) {
-        mysqli_query($conn, "INSERT INTO order_images (fileName,isOrder,orderImg,orderID) VALUES ('" . mysqli_real_escape_string($conn, orderImageFileName($attachment[1])) . "','1','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . (int)$orderID . "')");
-    }
-}
-
+function sendImmediateTask($conn, $taskID, $sendBy) {
 if(in_array('immediate', $sendBy, true)){
 
 	if(in_array('mail', $sendBy, true)){
@@ -304,6 +241,19 @@ if(in_array('immediate', $sendBy, true)){
 						
 						 $message = str_replace($search,$replace,$message);
 						 unset($replace);
+                        $mail = new PHPMailer();
+                        $mail->CharSet = 'UTF-8';
+                        $mail->Encoding = 'base64';
+                        configureAppMailer($mail);
+                        $mail->addAddress($to, $rowsCtBk['applicantName']);
+                        if (!empty($to2)) $mail->addCC($to2, $rowsCtBk['applicantName']);
+                        addConfiguredMailBcc($mail);
+                        $mail->isHTML(true);
+                        $mail->Subject = $subject;
+                        $mail->Body = appendConfiguredEmailFooter($conn, $message);
+                        attachTaskFilesToEmail($mail, $conn, $rowsEp['id']);
+                        $mail->send();
+
 
 						
 
@@ -394,11 +344,85 @@ if(in_array('immediate', $sendBy, true)){
 
 if (in_array('immediate', $sendBy, true) && in_array('whatsapp', $sendBy, true)) {
     $whatsAppResult = sendTaskWhatsApp($conn, $taskID);
-    $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
-    header('location: tasks.php?action=view&id=' . (int)$taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+    return $whatsAppResult;
+}
+    return null;
+}
+
+// End of SendinBlue //
+
+
+
+
+if(isset($_POST['submit']) && in_array($_POST['submit'], array("Submit", "Draft"), true)){
+$isDraft = ($_POST['submit'] === 'Draft' || ($_POST['deliveryStatus'] ?? 'send') === 'draft') ? 1 : 0;
+if(isset($_POST['action']) && $_POST['action']=="add"){
+
+$sendBy = isset($_POST['sendBy']) && is_array($_POST['sendBy']) ? $_POST['sendBy'] : [];
+
+$isExpired = "0";
+if(!$isDraft && in_array('immediate', $sendBy)){
+    $isExpired = "1";
+}
+
+// Handle dates, setting to a valid default if empty
+$repeatDate = isset($_POST['repeatDate']) ? $_POST['repeatDate'] : '';
+if(!$isDraft && in_array('immediate', $sendBy)){
+    $repeatDate = '';
+}
+$repeatDateForSql = !empty($repeatDate) ? sqlDtFormat($repeatDate) : '1970-01-01';
+$repeatDateSql = "'" . mysqli_real_escape_string($conn, $repeatDateForSql) . "'";
+
+$dueDate = isset($_POST['dueDate']) ? $_POST['dueDate'] : '';
+$dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
+$dueDateSql = "'" . mysqli_real_escape_string($conn, $dueDateForSql) . "'";
+
+$taskSMSID = !empty($_POST['taskSMSID']) ? mysqli_real_escape_string($conn, $_POST['taskSMSID']) : '0';
+$taskWhatsAppTemplate = isset($_POST['taskWhatsAppTemplate']) && is_string($_POST['taskWhatsAppTemplate']) && isset($whatsAppTemplates[$_POST['taskWhatsAppTemplate']]) ? mysqli_real_escape_string($conn, $_POST['taskWhatsAppTemplate']) : '';
+$taskMessageID = !empty($_POST['taskMessageID']) ? mysqli_real_escape_string($conn, $_POST['taskMessageID']) : '0';
+$orderID = !empty($_POST['orderID']) ? mysqli_real_escape_string($conn, $_POST['orderID']) : '0';
+$currentStatusID = !empty($_POST['currentStatusID']) ? mysqli_real_escape_string($conn, $_POST['currentStatusID']) : '0';
+$subject = isset($_POST['subject']) ? mysqli_real_escape_string($conn, $_POST['subject']) : '';
+$priorityID = !empty($_POST['priorityID']) ? mysqli_real_escape_string($conn, $_POST['priorityID']) : '';
+$priorityIDSql = ($priorityID !== '') ? "'" . $priorityID . "'" : "NULL";
+$assignTo = isset($_POST['assignTo']) && is_array($_POST['assignTo']) ? mysqli_real_escape_string($conn, implode(",", $_POST['assignTo'])) : '';
+$isSecondReminder = isset($_POST['isSecondReminder']) ? mysqli_real_escape_string($conn, $_POST['isSecondReminder']) : '0';
+$taskMessage = isset($_POST['taskMessage']) ? mysqli_real_escape_string($conn, $_POST['taskMessage']) : '';
+$taskSMS = isset($_POST['taskSMS']) ? mysqli_real_escape_string($conn, $_POST['taskSMS']) : '';
+$sendByStr = mysqli_real_escape_string($conn, @implode(",", $sendBy));
+$attachmentError = '';
+if (!$isDraft && in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
+    header('location: tasks.php?action=add&whatsappError=template');
     exit;
 }
-header("location: orders.php?action=view&id=".$_POST['orderID']."&act=1");
+$attachments = saveTaskAttachments(isset($_FILES['taskAttachments']) ? $_FILES['taskAttachments'] : null, $attachmentError);
+if ($attachments === false) {
+    header('location: tasks.php?action=add&uploadError=' . rawurlencode($attachmentError));
+    exit;
+}
+$attachmentFile = mysqli_real_escape_string($conn, !empty($attachments[0][0]) ? $attachments[0][0] : '');
+$attachmentName = mysqli_real_escape_string($conn, !empty($attachments[0][1]) ? $attachments[0][1] : '');
+
+mysqli_query($conn,"INSERT INTO tasks (isDraft,isExpired,taskSMSID,taskWhatsAppTemplate,taskMessageID,repeatDate,orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
+('".$isDraft."','".$isExpired."','".$taskSMSID."','".$taskWhatsAppTemplate."','".$taskMessageID."',".$repeatDateSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
+$taskID = mysqli_insert_id($conn);
+if (!$isDraft) saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
+foreach ($attachments as $attachment) {
+    mysqli_query($conn, "INSERT INTO task_attachments (taskID,fileName,storedFile,createdDate) VALUES ('" . $taskID . "','" . mysqli_real_escape_string($conn, $attachment[1]) . "','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . gmdate('Y-m-d H:i:s') . "')");
+    if (!$isDraft && (int)$orderID > 0) {
+        mysqli_query($conn, "INSERT INTO order_images (fileName,isOrder,orderImg,orderID) VALUES ('" . mysqli_real_escape_string($conn, orderImageFileName($attachment[1])) . "','1','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . (int)$orderID . "')");
+    }
+}
+
+if (!$isDraft) {
+    $whatsAppResult = sendImmediateTask($conn, $taskID, $sendBy);
+    if ($whatsAppResult !== null) {
+        $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
+        header('location: tasks.php?action=view&id=' . (int)$taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+        exit;
+    }
+}
+header($isDraft ? 'location: tasks.php?status=draft&act=1' : "location: orders.php?action=view&id=".$_POST['orderID']."&act=1");
 }else if(isset($_POST['action']) && $_POST['action']=="update"){
 
 $repeatDate = isset($_POST['repeatDate']) ? $_POST['repeatDate'] : '';
@@ -422,7 +446,7 @@ $isSecondReminder = isset($_POST['isSecondReminder']) ? (int)$_POST['isSecondRem
 $sendBy = isset($_POST['sendBy']) && is_array($_POST['sendBy']) ? $_POST['sendBy'] : [];
 $sendByStr = mysqli_real_escape_string($conn, implode(',', $sendBy));
 $editTaskID = (int)($_POST['id'] ?? 0);
-if (in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
+if (!$isDraft && in_array('whatsapp', $sendBy, true) && $taskWhatsAppTemplate === '') {
     header('location: tasks.php?action=edit&id=' . $editTaskID . '&whatsappError=template');
     exit;
 }
@@ -438,8 +462,9 @@ if (!empty($attachments[0][0])) {
 }
 
 $reminderTrackingResetSql = '';
-$existingReminderSettings = mysqli_query($conn, "SELECT dueDate,repeatDate,isSecondReminder FROM tasks WHERE id=" . (int)$_POST['id'] . " LIMIT 1");
+$existingReminderSettings = mysqli_query($conn, "SELECT dueDate,repeatDate,isSecondReminder,isDraft FROM tasks WHERE id=" . (int)$_POST['id'] . " LIMIT 1");
 $existingReminderRow = $existingReminderSettings ? mysqli_fetch_assoc($existingReminderSettings) : null;
+$publishingDraft = !$isDraft && $existingReminderRow && (int)$existingReminderRow['isDraft'] === 1;
 if ($existingReminderRow && (
     $existingReminderRow['dueDate'] !== $dueDateForSql ||
     $existingReminderRow['repeatDate'] !== $repeatDateForSql ||
@@ -449,6 +474,7 @@ if ($existingReminderRow && (
 }
 
 mysqli_query($conn, "UPDATE tasks SET 
+    isDraft        = " . $isDraft . ",
     taskMessageID   = " . $taskMessageID   . ",
     taskSMSID       = " . $taskSMSID       . ",
     taskWhatsAppTemplate = '" . $taskWhatsAppTemplate . "',
@@ -467,17 +493,46 @@ mysqli_query($conn, "UPDATE tasks SET
     sendBy          = '" . $sendByStr . "'
     WHERE id        = " . (int)$_POST['id'] . "
 ");
-saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
+if (!$isDraft) saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
 
 foreach ($attachments as $attachment) {
     mysqli_query($conn, "INSERT INTO task_attachments (taskID,fileName,storedFile,createdDate) VALUES ('" . (int)$_POST['id'] . "','" . mysqli_real_escape_string($conn, $attachment[1]) . "','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . gmdate('Y-m-d H:i:s') . "')");
-    if ($orderID > 0) {
+    if (!$isDraft && $orderID > 0 && !$publishingDraft) {
         mysqli_query($conn, "INSERT INTO order_images (fileName,isOrder,orderImg,orderID) VALUES ('" . mysqli_real_escape_string($conn, orderImageFileName($attachment[1])) . "','1','" . mysqli_real_escape_string($conn, $attachment[0]) . "','" . $orderID . "')");
     }
 }
 
-header("location: tasks.php?act=2");
+if ($publishingDraft) {
+    if ($orderID > 0) {
+        foreach (taskAttachments($conn, $editTaskID) as $attachment) {
+            $storedFile = mysqli_real_escape_string($conn, $attachment['storedFile']);
+            $fileName = mysqli_real_escape_string($conn, orderImageFileName($attachment['fileName']));
+            mysqli_query($conn, "INSERT INTO order_images (fileName,isOrder,orderImg,orderID)
+                SELECT '" . $fileName . "','1','" . $storedFile . "','" . $orderID . "'
+                WHERE NOT EXISTS (SELECT 1 FROM order_images WHERE orderID='" . $orderID . "' AND orderImg='" . $storedFile . "')");
+        }
+    }
+    if (in_array('immediate', $sendBy, true)) {
+        mysqli_query($conn, "UPDATE tasks SET isExpired='1', repeatDate='1970-01-01' WHERE id=" . $editTaskID);
+        $whatsAppResult = sendImmediateTask($conn, $editTaskID, $sendBy);
+        if ($whatsAppResult !== null) {
+            $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
+            header('location: tasks.php?action=view&id=' . $editTaskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+            exit;
+        }
+    }
 }
+header($isDraft ? 'location: tasks.php?status=draft&act=2' : 'location: tasks.php?act=2');
+}
+}
+if (isset($_GET['action']) && in_array($_GET['action'], array('mail', 'SMS', 'WhatsApp'), true)) {
+    $draftCheck = mysqli_query($conn, "SELECT isDraft FROM tasks WHERE id=" . (int)($_GET['id'] ?? 0) . " LIMIT 1");
+    $draftTask = $draftCheck ? mysqli_fetch_assoc($draftCheck) : null;
+    if ($draftTask && (int)$draftTask['isDraft'] === 1) {
+        $_SESSION['taskWhatsAppNotice'] = 'This task is a draft. Change Status to Send and save before sending.';
+        header('location: tasks.php?action=view&id=' . (int)$_GET['id'] . '&act=4');
+        exit;
+    }
 }
 if(isset($_GET['action']) && $_GET['action']=="mail"){
     $taskIdForChannelCheck = (int)($_GET['id'] ?? 0);
@@ -737,6 +792,7 @@ if(isset($_GET['action']) && $_GET['action']=="edit"){
     $priorityID = '';
     $assignTo = '';
     $isSecondReminder = '1';
+    $isDraft = 0;
     $taskMessage = '';
     $taskSMS = '';
     $sendBy = '';
@@ -873,9 +929,11 @@ echo @implode(", ",$asignToStr);
 </div></div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Repeat</label>
-<div class="col-md-8"><div class="paddingTxt">
-<input type="checkbox" name="isSecondReminder" value="1" <?=($isSecondReminder==1)?'checked="checked"':'';?> id="inputDefault"  > If Yes, second reminder will active.</div>
+<div class="col-md-5"><div class="paddingTxt">
+<input type="checkbox" name="isSecondReminder" value="1" <?=($isSecondReminder==1)?'checked="checked"':'';?> id="inputDefault" disabled > If Yes, second reminder will be active.</div>
 </div>
+<label class="col-md-2 control-label">Status</label>
+<div class="col-md-2"><div class="paddingTxt"><span class="label <?=((int)$isDraft === 1) ? 'label-warning' : 'label-success';?>"><?=((int)$isDraft === 1) ? 'Draft' : 'Send';?></span></div></div>
 </div>
 
 <?php
@@ -978,11 +1036,13 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <input type="checkbox" name="sendBy[]" value="whatsapp" <?=(in_array('whatsapp',$sendByAry)?'checked="checked"':'');?> > WhatsApp &nbsp;
 <input type="checkbox" name="sendBy[]" value="immediate" <?=(in_array('immediate',$sendByAry)?'checked="checked"':'');?> > Immediate
 &nbsp;   &nbsp;
-<?php if (in_array('mail', $sendByAry, true)): ?><a onclick="return confirm('Are you sure you want send Email?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=mail&id=<?=$id?>" title="Send Email Notification"><b>Mail</b></a>  &nbsp;<?php endif; ?>
-<?php if (in_array('sms', $sendByAry, true)): ?><a title="Send SMS Notification" onclick="return confirm('Are you sure you want send SMS?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=SMS&id=<?=$id?>"><b>SMS</b></a><?php endif; ?>
+<?php if (!(int)$isDraft && in_array('mail', $sendByAry, true)): ?><a onclick="return confirm('Are you sure you want send Email?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=mail&id=<?=$id?>" title="Send Email Notification"><b>Mail</b></a>  &nbsp;<?php endif; ?>
+<?php if (!(int)$isDraft && in_array('sms', $sendByAry, true)): ?><a title="Send SMS Notification" onclick="return confirm('Are you sure you want send SMS?');" class="btn btn-default" href="<?=$siteUrl;?>tasks.php?action=SMS&id=<?=$id?>"><b>SMS</b></a><?php endif; ?>
 <?php if (in_array('whatsapp', $sendByAry, true)): ?>
 &nbsp;<a title="Open the exact WhatsApp API payload in a new window" class="btn btn-default" target="_blank" rel="noopener" href="<?=$siteUrl;?>tasks.php?action=WhatsAppPreview&amp;id=<?=(int)$id?>"><b>View Payload</b></a>
+<?php if (!(int)$isDraft): ?>
 &nbsp;<a title="Send WhatsApp template" onclick="return confirm('Send WhatsApp template to all assigned contacts?');" class="btn btn-success" href="<?=$siteUrl;?>tasks.php?action=WhatsApp&amp;id=<?=(int)$id?>"><b>WhatsApp</b></a>
+<?php endif; ?>
 <?php endif; ?>
 
 </div>
@@ -1035,7 +1095,23 @@ $("#orderID").change(function(){
         }
     });
 });
-$('#taskForm').on('submit', function(){
+function updateTaskDraftFields() {
+    var isDraft = $('#deliveryStatus').val() === 'draft';
+    $('#orderID').prop('required', !isDraft);
+}
+$('#deliveryStatus').on('change', updateTaskDraftFields);
+$('#taskStatusBadgeMenu [data-delivery-status]').on('click', function(event){
+    event.preventDefault();
+    var status = $(this).attr('data-delivery-status');
+    $('#deliveryStatus').val(status).trigger('change');
+    $('#taskStatusBadgeText').text(status === 'draft' ? 'Draft' : 'Send');
+    $('#taskStatusBadge').toggleClass('label-warning', status === 'draft').toggleClass('label-success', status === 'send');
+});
+updateTaskDraftFields();
+$('#taskForm').on('submit', function(event){
+    var submitter = event.originalEvent && event.originalEvent.submitter;
+    if ((submitter && submitter.value === 'Draft') || $('#deliveryStatus').val() === 'draft') return;
+
     var dueDate = $.trim($(this).find('[name="dueDate"]').val() || '');
     var repeatDate = $.trim($(this).find('[name="repeatDate"]').val() || '');
     if (dueDate !== '' && repeatDate !== '' && dueDate === repeatDate) {
@@ -1116,7 +1192,7 @@ $(".repeatDate").datepicker({todayHighlight:true,autoclose:true});
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Order *</label>
 <div class="col-md-9 selectSrch">
-<?php if ($action == "update" && (int)$orderID === 0): ?>
+<?php if ($action == "update" && (int)$orderID === 0 && !(int)$isDraft): ?>
 <input type="hidden" name="orderID" value="0">
 <div class="form-control-static">Price request (no linked order)</div>
 <?php else: ?>
@@ -1157,8 +1233,21 @@ echo '<option value="'.$rowsOP['id'].'" '.$selected.' >'.$rowsOP['prodName'].' (
 </div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="isSecondReminder">Repeat</label>
-<div class="col-md-9">
+<div class="col-md-5">
 <div class="paddingTxt"><label><input type="checkbox" name="isSecondReminder" value="1" id="isSecondReminder" <?=((int)$isSecondReminder===1)?'checked="checked"':'';?>> If Yes, second reminder will be active.</label></div>
+</div>
+<label class="col-md-2 control-label" for="taskStatusBadge">Status</label>
+<div class="col-md-2">
+<input type="hidden" name="deliveryStatus" id="deliveryStatus" value="<?=((int)$isDraft === 1) ? 'draft' : 'send';?>">
+<div class="dropdown paddingTxt">
+<button type="button" id="taskStatusBadge" class="label <?=((int)$isDraft === 1) ? 'label-warning' : 'label-success';?> dropdown-toggle" style="border:0; font-size:14px; padding:9px 16px; min-width:90px;" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+<span id="taskStatusBadgeText"><?=((int)$isDraft === 1) ? 'Draft' : 'Send';?></span> <span class="caret"></span>
+</button>
+<ul class="dropdown-menu" id="taskStatusBadgeMenu" aria-labelledby="taskStatusBadge">
+<li><a href="#" data-delivery-status="send">Send</a></li>
+<li><a href="#" data-delivery-status="draft">Draft</a></li>
+</ul>
+</div>
 </div>
 </div>
 <div class="form-group">
@@ -1461,7 +1550,7 @@ $('#sms_selection').change(function(){
 <input type="checkbox" name="sendBy[]" value="sms" <?=(in_array('sms',$sendByAry)?'checked="checked"':'');?> > SMS &nbsp;
 <input type="checkbox" name="sendBy[]" value="whatsapp" <?=(in_array('whatsapp',$sendByAry)?'checked="checked"':'');?> > WhatsApp &nbsp;
 <?php
-if($_GET['action']=="add"){
+if($_GET['action']=="add" || (int)$isDraft === 1){
 echo '<input type="checkbox" name="sendBy[]" value="immediate" '.((in_array('immediate',$sendByAry)?'checked="checked"':'')).' > Immediate';
 }
 ?>
@@ -1474,6 +1563,7 @@ echo '<input type="checkbox" name="sendBy[]" value="immediate" '.((in_array('imm
 <input type="hidden" name="action" value="<?=$action;?>" />
 <input type="hidden" name="id" value="<?=$id;?>" />
 <button class="btn btn-primary" name="submit" value="Submit">Submit</button>
+<button type="submit" class="btn btn-default" name="submit" value="Draft" formnovalidate>Draft</button>
 <button type="button" onclick="window.location.href='<?=$siteUrl;?>tasks.php'" class="btn btn-default">Cancel</button>
 </div>
 </div>
@@ -1530,13 +1620,14 @@ $dtAry = explode(" ",currDateTimeGmt());
 </div>
 <div class="col-md-6" align="right">
 <?php
-$taskStatus = isset($_GET['status']) && in_array($_GET['status'], array('scheduled', 'overdue', 'first_sent', 'second_sent', 'all_sent'), true) ? $_GET['status'] : 'scheduled';
+$taskStatus = isset($_GET['status']) && in_array($_GET['status'], array('draft', 'scheduled', 'overdue', 'first_sent', 'second_sent', 'all_sent'), true) ? $_GET['status'] : 'scheduled';
 $taskStatusConditions = array(
-    'scheduled' => "isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>='" . $dtAry[0] . "'",
-    'overdue' => "isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>'1970-01-01' AND dueDate<'" . $dtAry[0] . "'",
-    'first_sent' => "isSecondReminder='1' AND firstReminderSentAt IS NOT NULL AND secondReminderSentAt IS NULL",
-    'second_sent' => "isSecondReminder='1' AND secondReminderSentAt IS NOT NULL",
-    'all_sent' => "(firstReminderSentAt IS NOT NULL OR secondReminderSentAt IS NOT NULL OR isExpired<>'0')"
+    'draft' => "isDraft=1",
+    'scheduled' => "isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>='" . $dtAry[0] . "'",
+    'overdue' => "isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL AND dueDate>'1970-01-01' AND dueDate<'" . $dtAry[0] . "'",
+    'first_sent' => "isDraft=0 AND isSecondReminder='1' AND firstReminderSentAt IS NOT NULL AND secondReminderSentAt IS NULL",
+    'second_sent' => "isDraft=0 AND isSecondReminder='1' AND secondReminderSentAt IS NOT NULL",
+    'all_sent' => "isDraft=0 AND (firstReminderSentAt IS NOT NULL OR secondReminderSentAt IS NOT NULL OR isExpired<>'0')"
 );
 $taskStatusCounts = array();
 foreach ($taskStatusConditions as $statusKey => $statusCondition) {
@@ -1546,6 +1637,7 @@ foreach ($taskStatusConditions as $statusKey => $statusCondition) {
 }
 $taskSearchQuery = isset($_GET['q']) && $_GET['q'] !== '' ? '&amp;q=' . rawurlencode($_GET['q']) : '';
 ?>
+<a href="<?=$siteUrl;?>tasks.php?status=draft<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'draft' ? 'btn-primary' : 'btn-default';?>">Draft (<?=$taskStatusCounts['draft'];?>)</a>
 <a href="<?=$siteUrl;?>tasks.php?status=scheduled<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'scheduled' ? 'btn-primary' : 'btn-default';?>">Scheduled (<?=$taskStatusCounts['scheduled'];?>)</a>
 <a href="<?=$siteUrl;?>tasks.php?status=overdue<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'overdue' ? 'btn-danger' : 'btn-default';?>">Overdue / Not Sent (<?=$taskStatusCounts['overdue'];?>)</a>
 <a href="<?=$siteUrl;?>tasks.php?status=first_sent<?=$taskSearchQuery;?>" class="btn <?=$taskStatus === 'first_sent' ? 'btn-primary' : 'btn-default';?>">1st Due Sent (<?=$taskStatusCounts['first_sent'];?>)</a>
@@ -1594,7 +1686,7 @@ if ($taskStatus === 'overdue') $sqlOrder = "dueDate DESC,id DESC";
 if ($taskStatus === 'first_sent') $sqlOrder = "firstReminderSentAt DESC,id DESC";
 if ($taskStatus === 'second_sent') $sqlOrder = "secondReminderSentAt DESC,id DESC";
 if ($taskStatus === 'all_sent') $sqlOrder = "COALESCE(secondReminderSentAt,firstReminderSentAt,createdDate) DESC,id DESC";
-$sqlSeller = "SELECT id,subject,dueDate,repeatDate,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY ".$sqlOrder." limit $eu, $limit";
+$sqlSeller = "SELECT id,subject,dueDate,repeatDate,isDraft,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY ".$sqlOrder." limit $eu, $limit";
 $sqltot = "SELECT id FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY id DESC ";
 
 $resultSeller= mysqli_query($conn,$sqlSeller);
@@ -1606,7 +1698,9 @@ $sno=$start;
 while($rows=mysqli_fetch_assoc($resultSeller)){
 $sno++;
 $taskStatusBadge = "<span class='label label-warning'>SCHEDULED</span>";
-if ($rows['dueDate'] < $dtAry[0] && empty($rows['firstReminderSentAt']) && $rows['isExpired'] == '0') {
+if ((int)$rows['isDraft'] === 1) {
+    $taskStatusBadge = "<span class='label label-default'>DRAFT</span>";
+} elseif ($rows['dueDate'] < $dtAry[0] && empty($rows['firstReminderSentAt']) && $rows['isExpired'] == '0') {
     $taskStatusBadge = "<span class='label label-danger'>OVERDUE / NOT SENT</span>";
 } elseif ((int)$rows['isSecondReminder'] === 1 && !empty($rows['secondReminderSentAt'])) {
     $taskStatusBadge = "<span class='label label-success'>2nd Due Sent</span>";

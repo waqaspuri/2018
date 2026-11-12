@@ -34,7 +34,7 @@ function addTaskAttachmentsToMail($mail, $conn, $taskID) {
 $dtAry = explode(" ", currDateTimeGmt());
 $notificationSent = false;
 
-$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder,repeatDate FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND isExpired='0' AND firstReminderSentAt IS NULL");
+$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder,repeatDate FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL");
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
@@ -259,7 +259,7 @@ if ($numRowsExp > 0) {
 }
 
 	$sendRepeatDateEmail = true;
-	$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder FROM tasks WHERE repeatDate='" . $dtAry[0] . "' AND isSecondReminder='1' AND isExpired='0' AND secondReminderSentAt IS NULL");
+	$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder FROM tasks WHERE repeatDate='" . $dtAry[0] . "' AND isSecondReminder='1' AND isDraft=0 AND isExpired='0' AND secondReminderSentAt IS NULL");
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {

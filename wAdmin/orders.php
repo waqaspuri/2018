@@ -1499,7 +1499,25 @@ window.addEventListener('message', function(event) {
 </section>
 </div>
 </section>
-<?php }else{  ?>
+<?php }else{
+$orderStatusFilter = isset($_GET['sID']) ? (int)$_GET['sID'] : 0;
+$orderSearch = isset($_GET['q']) && is_string($_GET['q']) ? $_GET['q'] : '';
+$showCompletedOrders = (isset($_GET['showCompleted']) && $_GET['showCompleted'] === '1') || $orderStatusFilter === 3;
+$orderListParams = array('q' => $orderSearch, 'sID' => $orderStatusFilter ?: '', 'showCompleted' => $showCompletedOrders ? '1' : '0');
+$orderToggleParams = $orderListParams;
+$orderToggleParams['showCompleted'] = $showCompletedOrders ? '0' : '1';
+if ($showCompletedOrders && $orderStatusFilter === 3) {
+    $orderToggleParams['sID'] = '';
+}
+$orderToggleUrl = 'orders.php?' . http_build_query($orderToggleParams);
+$orderStatusSql = " AND o.statusID <> '1'";
+if (!$showCompletedOrders) {
+    $orderStatusSql .= " AND o.statusID <> '3'";
+}
+if ($orderStatusFilter > 0) {
+    $orderStatusSql .= " AND o.statusID=" . $orderStatusFilter;
+}
+?>
 <section role="main" class="content-body">
 <header class="page-header">
 <h2>Manage Orders</h2>
@@ -1531,6 +1549,7 @@ if(isset($_GET['act'])){
 <div class="form-group">
 <div class="col-md-12">
 <form class="form-horizontal form-bordered" method="get">
+<input type="hidden" name="showCompleted" value="<?=$showCompletedOrders ? '1' : '0'?>">
 <select style="width:40%;float:left" class="form-control" name="sID" >
 <option value="">- Select -</option>
 <?php
@@ -1540,9 +1559,13 @@ while($rowsStus = mysqli_fetch_assoc($sqlStus)){
 }
 ?>
 </select>
-<input type="text" style="width:40%;float:left;margin-left:10px;" class="form-control" name="q" value="<?=(isset($_GET['q'])?$_GET['q']:'')?>" placeholder="Search" id="inputDefault"  >
+<input type="text" style="width:40%;float:left;margin-left:10px;" class="form-control" name="q" value="<?=htmlspecialchars($orderSearch, ENT_QUOTES, 'UTF-8')?>" placeholder="Search" id="inputDefault"  >
 <button class="btn btn-primary" name="submit" value="Submit">GO</button>
 </form> <span class="hintTxt">Search :-  product Designation.</span>
+<div style="margin-top:10px;">
+<a class="btn btn-default" href="<?=htmlspecialchars($orderToggleUrl, ENT_QUOTES, 'UTF-8')?>"><?=$showCompletedOrders ? 'Hide completed orders' : 'Show hidden orders'?></a>
+<span class="text-muted"><?=$showCompletedOrders ? 'Completed orders are included.' : 'Completed orders are hidden.'?></span>
+</div>
 </div>
 <div class="col-md-6" align="right">
 &nbsp;
@@ -1568,12 +1591,8 @@ while($rowsStus = mysqli_fetch_assoc($sqlStus)){
 
 
 
-$page_name="orders.php?q=".isset($_GET['q']);
-if(!isset($_REQUEST["start"])) {
-    $start = 0;
-}
-else
-    $start = $_REQUEST["start"];
+$page_name = htmlspecialchars('orders.php?' . http_build_query($orderListParams), ENT_QUOTES, 'UTF-8');
+$start = isset($_GET['start']) ? max(0, (int)$_GET['start']) : 0;
 
 $eu = ($start - 0);
 $limit = 20;
@@ -1582,8 +1601,8 @@ $back = $eu - $limit;
 $next = $eu + $limit;
 
 $sqlSrch = "";
-if(isset($_GET['q']) && $_GET['q']!=""){
-    $searchTerm = mysqli_real_escape_string($conn, trim((string)$_GET['q']));
+if($orderSearch !== ''){
+    $searchTerm = mysqli_real_escape_string($conn, trim($orderSearch));
     $sqlSrch = " AND (CAST(o.id AS CHAR) LIKE '%" . $searchTerm . "%'
         OR o.invoiceNo LIKE '%" . $searchTerm . "%'
         OR o.documentOrderNo LIKE '%" . $searchTerm . "%'
@@ -1606,8 +1625,8 @@ $sqlSeller = "SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDat
     FROM orders AS o JOIN products AS p ON p.id=o.productID JOIN customers AS c ON c.id=o.customerID JOIN customers AS v ON v.id=o.vendorID
     LEFT JOIN status AS s ON s.id=o.statusID
     LEFT JOIN (SELECT orderID,COUNT(*) AS noteCount,MAX(COALESCE(modifiedDate,createdDate)) AS lastNoteActivity FROM order_notes GROUP BY orderID) AS notes ON notes.orderID=o.id
-    WHERE o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')." ".$sqlSrch." ORDER BY lastActivity DESC,o.createdDate DESC,o.id DESC limit $eu, $limit";
-$sqltot = "SELECT COUNT(*) AS total FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID AND o.statusID <> '1' ".((isset($_GET['sID']) && $_GET['sID']!="")?' AND o.statusID="'.$_GET['sID'].'" ':'')."  ". $sqlSrch;
+    WHERE 1=1 ".$orderStatusSql." ".$sqlSrch." ORDER BY lastActivity DESC,o.createdDate DESC,o.id DESC limit $eu, $limit";
+$sqltot = "SELECT COUNT(*) AS total FROM orders as o,products as p,customers as c,customers as v WHERE v.id=o.vendorID and c.id=o.customerID and p.id=o.productID ".$orderStatusSql." ". $sqlSrch;
 $sqlMergedInvoices = mysqli_query($conn, "SELECT invoiceNo, COUNT(*) AS total_count FROM orders WHERE invoiceNo <> '' GROUP BY invoiceNo HAVING COUNT(*) > 1");
 $mergedInvoiceMap = array();
 while ($rowMergedInvoice = mysqli_fetch_assoc($sqlMergedInvoices)) {

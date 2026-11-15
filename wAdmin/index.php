@@ -25,21 +25,73 @@ $dtAry = explode(" ",currDateTimeGmt());
 </ol>
 <a >&nbsp;</i></a> </div>
 </header>
-<div class="col-md-12 noPadding">
-<section class="panel">
-<div class="panel-body">
-<div class="row">
-<div class="col-md-12">
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>tasks.php"><b>View All</b></a> </div>
-<h2 class="panel-title">Orders by Status</h2>
+<section class="dashboard-orders-panel">
+<header class="dashboard-orders-heading">
+<div><h2>Orders by status</h2><p>Your latest orders, grouped by progress.</p></div>
+<a class="dashboard-order-button" href="<?=$siteUrl;?>orders.php">View all orders <span aria-hidden="true">&rarr;</span></a>
 </header>
-<div class="panel-body" style="padding:15px">
-<div class="row" style="display:flex;flex-wrap:wrap">
+<style>
+.dashboard-orders-panel{clear:both;margin-bottom:24px;color:#253349}
+.dashboard-orders-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.dashboard-orders-heading h2{margin:0;font-size:20px;line-height:1.3;font-weight:600;letter-spacing:-.4px;color:#1e293b}
+.dashboard-orders-heading p{margin:4px 0 0;font-size:12px;color:#64748b}
+.dashboard-status-grid{display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px}
+.dashboard-order-status{flex:1 1 340px;min-width:0;max-width:100%;border:1px solid #dfe5ed;border-radius:12px;background:#fff;box-shadow:0 2px 6px rgba(15,23,42,.035);overflow:hidden}
+.dashboard-order-status > summary{display:flex;align-items:center;gap:8px;padding:13px 14px;cursor:pointer;font-size:13px;line-height:1.4;font-weight:600;color:#253349;list-style:none;background:#f8fafc}
+.dashboard-order-status > summary::-webkit-details-marker{display:none}
+.dashboard-order-status > summary::after{content:'';width:6px;height:6px;border-right:1.5px solid #64748b;border-bottom:1.5px solid #64748b;transform:rotate(-45deg);margin-left:4px;flex-shrink:0}
+.dashboard-order-status[open] > summary::after{transform:rotate(45deg);margin-top:-3px}
+.dashboard-status-dot{width:9px;height:9px;flex-shrink:0;border-radius:50%;background:var(--status-color,#94a3b8);box-shadow:0 0 0 1px rgba(15,23,42,.12)}
+.dashboard-status-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.dashboard-status-count{padding:2px 7px;border-radius:6px;background:#e8edf3;color:#475569;font-size:11px;font-variant-numeric:tabular-nums}
+.dashboard-order-status > summary:focus-visible,.dashboard-orders-panel a:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}
+.dashboard-order-status .status-orders-link{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid #edf1f5;color:#64748b;font-size:11px}
+.dashboard-orders-panel a{color:#2563eb;text-decoration:none}
+.dashboard-orders-panel a:hover{text-decoration:underline}
+.dashboard-orders-panel .dashboard-order-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:5px 10px;min-height:32px;border:1px solid #dce3ec;border-radius:7px;background:#fff;color:#334155;font-size:12px;font-weight:600;line-height:1.4;white-space:nowrap;text-decoration:none}
+.dashboard-orders-panel .dashboard-order-button:hover{background:#eff6ff;border-color:#b9cff5;color:#1d4ed8}
+.dashboard-order-list{list-style:none;margin:0;padding:0}
+.dashboard-order-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #edf1f5}
+.dashboard-order-item:hover{background:#fafcff}
+.dashboard-order-info{flex:1;min-width:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.dashboard-order-title,.dashboard-order-product,.dashboard-order-parties{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;row-gap:2px}
+.dashboard-order-title{font-weight:600;font-size:12px}
+.dashboard-order-reference{font-size:10px;font-weight:400;color:#64748b}
+.dashboard-order-product{margin-top:2px;color:#334155;font-weight:600}
+.dashboard-order-quantity{color:#475569;font-size:10px;font-weight:400;background:#f1f5f9;border-radius:4px;padding:0 5px}
+.dashboard-order-parties{margin-top:2px;color:#64748b;font-size:11px}
+.dashboard-order-parties b{font-weight:500;color:#475569}
+.dashboard-order-date{font-size:10px;color:#64748b}
+.dashboard-order-view{flex-shrink:0;margin-left:auto}
+@media(min-width:1200px){.dashboard-order-status{flex:0 0 calc(50% - 7px)}}
+@media(min-width:1700px){.dashboard-order-status{flex-basis:calc(33.333333% - 10px)}}
+@media(max-width:480px){.dashboard-orders-heading{align-items:flex-start;flex-direction:column}.dashboard-order-item{padding:9px 10px}.dashboard-order-status > summary{padding:12px 10px}}
+</style>
+<div class="dashboard-status-grid">
 <?php
-$sqlOrdr = mysqli_query($conn,"SELECT s.id,s.status,s.bgColor,COUNT(o.id) AS orderCount,MAX(COALESCE(o.modifiedDate,o.createdDate)) AS lastModified FROM status AS s LEFT JOIN orders AS o ON o.statusID=s.id GROUP BY s.id,s.status,s.bgColor ORDER BY (lastModified IS NULL) ASC,lastModified DESC,s.id ASC");
+$dashboardOrdersByStatus = array();
+$dashboardOrdersPerStatus = 10;
+$dashboardOrdersResult = mysqli_query($conn, "SELECT o.id,o.statusID,o.invoiceNo,o.documentOrderNo,o.quantity,o.orderUOM,o.createdDate,
+    v.applicantName AS vendorName,c.applicantName AS customerName,p.prodName
+    FROM orders AS o
+    JOIN status AS s ON s.id=o.statusID
+    LEFT JOIN customers AS v ON v.id=o.vendorID
+    LEFT JOIN customers AS c ON c.id=o.customerID
+    LEFT JOIN products AS p ON p.id=o.productID
+    ORDER BY COALESCE(o.modifiedDate,o.createdDate) DESC,o.id DESC");
+if ($dashboardOrdersResult) {
+    while ($dashboardOrder = mysqli_fetch_assoc($dashboardOrdersResult)) {
+        $dashboardStatusID = (int)$dashboardOrder['statusID'];
+        if (count($dashboardOrdersByStatus[$dashboardStatusID] ?? array()) < $dashboardOrdersPerStatus) {
+            $dashboardOrdersByStatus[$dashboardStatusID][] = $dashboardOrder;
+        }
+    }
+}
+$sqlOrdr = mysqli_query($conn,"SELECT s.id,s.status,s.bgColor,COUNT(o.id) AS orderCount,MAX(COALESCE(o.modifiedDate,o.createdDate)) AS lastModified FROM status AS s LEFT JOIN orders AS o ON o.statusID=s.id GROUP BY s.id,s.status,s.bgColor HAVING COUNT(o.id) > 0 ORDER BY (lastModified IS NULL) ASC,lastModified DESC,s.id ASC");
 if($sqlOrdr){
+if (mysqli_num_rows($sqlOrdr) === 0) {
+    echo '<p class="text-muted">No orders found.</p>';
+}
 while($rows = mysqli_fetch_assoc($sqlOrdr)){
     $statusID = (int)$rows['id'];
     $statusCount = (int)$rows['orderCount'];
@@ -49,24 +101,31 @@ while($rows = mysqli_fetch_assoc($sqlOrdr)){
     $lastModified = trim((string)($rows['lastModified'] ?? ''));
     $lastModifiedLabel = $lastModified !== '' ? 'Last modified ' . htmlspecialchars((string)viewDtTm($lastModified), ENT_QUOTES, 'UTF-8') : 'No orders yet';
     $statusUrl = $statusID === 1 ? 'leads.php' : 'orders.php?sID=' . $statusID;
-    echo '<div class="col-xs-6 col-md-4" style="margin-bottom:15px">';
-    echo '<a href="'.$statusUrl.'" style="display:block;height:100%;min-height:120px;padding:18px 20px;border:1px solid #e5e5e5;border-left:5px solid '.$statusColor.';border-radius:4px;background:#fff;color:#333;text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.07)">';
-    echo '<div style="font-size:15px;font-weight:600;line-height:1.35">'.$statusName.'</div>';
-    echo '<div style="font-size:30px;font-weight:700;line-height:1.2;margin:10px 0 4px">'.$statusCount.'</div>';
-    echo '<div style="font-size:12px;color:#777">'.($statusCount === 1 ? 'order' : 'orders').' &middot; View orders &rarr;</div>';
-    echo '<div style="font-size:11px;color:#999;margin-top:8px">'.$lastModifiedLabel.'</div>';
-    echo '</a></div>';
+    echo '<details class="dashboard-order-status" style="--status-color:'.$statusColor.'" open>';
+    echo '<summary title="'.$lastModifiedLabel.'"><span class="dashboard-status-dot" aria-hidden="true"></span><span class="dashboard-status-name">'.$statusName.'</span><span class="dashboard-status-count">'.$statusCount.'</span></summary>';
+    echo '<div class="status-orders-link"><span>Latest '.min($statusCount, $dashboardOrdersPerStatus).' of '.$statusCount.'</span><a href="'.$statusUrl.'">View all <span aria-hidden="true">&rarr;</span></a></div>';
+    echo '<ul class="dashboard-order-list">';
+    foreach ($dashboardOrdersByStatus[$statusID] ?? array() as $dashboardOrder) {
+        $orderUrl = 'orders.php?action=view&amp;id=' . (int)$dashboardOrder['id'];
+        $invoiceLabel = trim((string)$dashboardOrder['invoiceNo']);
+        if ($invoiceLabel === '') $invoiceLabel = '#' . (int)$dashboardOrder['id'];
+        echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><div class="dashboard-order-title"><a href="'.$orderUrl.'">'.htmlspecialchars($invoiceLabel, ENT_QUOTES, 'UTF-8').'</a>';
+        if (trim((string)$dashboardOrder['documentOrderNo']) !== '') {
+            echo '<span class="dashboard-order-reference">Order '.htmlspecialchars((string)$dashboardOrder['documentOrderNo'], ENT_QUOTES, 'UTF-8').'</span>';
+        }
+        echo '</div><div class="dashboard-order-product"><span>'.htmlspecialchars((string)($dashboardOrder['prodName'] ?? ''), ENT_QUOTES, 'UTF-8').'</span>';
+        echo '<span class="dashboard-order-quantity">Qty '.htmlspecialchars(trim((string)$dashboardOrder['quantity'].' '.(string)$dashboardOrder['orderUOM']), ENT_QUOTES, 'UTF-8').'</span></div>';
+        echo '<div class="dashboard-order-parties"><span><b>Vendor</b> '.htmlspecialchars((string)($dashboardOrder['vendorName'] ?? ''), ENT_QUOTES, 'UTF-8').'</span>';
+        echo '<span><b>Customer</b> '.htmlspecialchars((string)($dashboardOrder['customerName'] ?? ''), ENT_QUOTES, 'UTF-8').'</span></div>';
+        echo '<div class="dashboard-order-date">Created '.htmlspecialchars((string)viewDtTm($dashboardOrder['createdDate']), ENT_QUOTES, 'UTF-8').'</div></div>';
+        echo '<a class="dashboard-order-button dashboard-order-view" aria-label="View order '.htmlspecialchars($invoiceLabel, ENT_QUOTES, 'UTF-8').'" href="'.$orderUrl.'">View <span aria-hidden="true">&rarr;</span></a></li>';
+    }
+    echo '</ul></details>';
 }
 }
 ?>
 </div>
-</div>
 </section>
-</div>
-</div>
-</div>
-</section>
-</div>
 
 
 <div class="col-md-12 noPadding">

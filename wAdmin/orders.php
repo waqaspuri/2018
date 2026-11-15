@@ -1502,7 +1502,7 @@ window.addEventListener('message', function(event) {
 <?php }else{
 $orderStatusFilter = isset($_GET['sID']) ? (int)$_GET['sID'] : 0;
 $orderSearch = isset($_GET['q']) && is_string($_GET['q']) ? $_GET['q'] : '';
-$showCompletedOrders = (isset($_GET['showCompleted']) && $_GET['showCompleted'] === '1') || $orderStatusFilter === 3;
+$showCompletedOrders = !isset($_GET['showCompleted']) || $_GET['showCompleted'] !== '0' || $orderStatusFilter === 3;
 $orderListParams = array('q' => $orderSearch, 'sID' => $orderStatusFilter ?: '', 'showCompleted' => $showCompletedOrders ? '1' : '0');
 $orderToggleParams = $orderListParams;
 $orderToggleParams['showCompleted'] = $showCompletedOrders ? '0' : '1';

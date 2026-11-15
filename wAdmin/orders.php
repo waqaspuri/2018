@@ -1540,50 +1540,98 @@ if(isset($_GET['act'])){
     echo '<div class="alert alert-info"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>'.$msgTxt.'</strong></div>';
 }
 ?>
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>orders.php?action=add"><b>Add New</b></a> </div>
-<h2 class="panel-title">Manage Order</h2>
+<section class="orders-workspace">
+<style>
+.orders-workspace{color:#334155}
+.orders-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.orders-heading h2{margin:0;color:#1e293b;font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-.4px}
+.orders-heading p{margin:4px 0 0;font-size:12px;color:#64748b}
+.orders-workspace a{color:#2563eb;text-decoration:none}
+.orders-workspace a:hover{text-decoration:underline}
+.orders-workspace .orders-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 12px;border:1px solid #dce3ec;border-radius:7px;background:#fff;color:#334155;font-size:12px;line-height:1.4;font-weight:600;text-decoration:none;white-space:nowrap}
+.orders-workspace .orders-button:hover{background:#eff6ff;border-color:#b9cff5;color:#1d4ed8}
+.orders-workspace .orders-button-primary{background:#2563eb;border-color:#2563eb;color:#fff}
+.orders-workspace .orders-button-primary:hover{background:#1d4ed8;color:#fff}
+.orders-workspace a:focus-visible,.orders-workspace button:focus-visible,.orders-workspace input:focus-visible,.orders-workspace select:focus-visible,.orders-workspace summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.orders-card{border:1px solid #dfe5ed;border-radius:12px;background:#fff;box-shadow:0 2px 6px rgba(15,23,42,.035);overflow:hidden}
+.orders-filter-form{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;padding:16px}
+.orders-filter-field{flex:1 1 190px;min-width:0}
+.orders-filter-search{flex:2 1 280px}
+.orders-filter-field label{display:block;margin-bottom:5px;color:#475569;font-size:11px;font-weight:600}
+.orders-filter-field input,.orders-filter-field select{display:block;box-sizing:border-box;width:100%;height:38px;border:1px solid #dce3ec;border-radius:7px;padding:8px 10px;background:#fff;color:#334155;font:inherit;font-size:12px}
+.orders-filter-field input::placeholder{color:#64748b}
+.orders-filter-form .orders-button{min-height:38px}
+.orders-visibility{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:10px 16px;border-top:1px solid #edf1f5;background:#f8fafc;color:#64748b;font-size:12px}
+.orders-table-scroll{overflow-x:auto}
+.orders-workspace .orders-table{width:100%;min-width:1080px;border-collapse:collapse;margin:0;font-size:12px;line-height:1.5}
+.orders-table th{padding:11px 12px;background:#f8fafc;border-top:1px solid #edf1f5;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;text-align:left;white-space:nowrap}
+.orders-table td{padding:13px 12px;border-bottom:1px solid #edf1f5;vertical-align:middle;color:#334155;overflow-wrap:anywhere}
+.orders-table tbody tr:last-child td{border-bottom:0}
+.orders-table .order-row:hover{background:#fafcff}
+.orders-table .order-number{color:#94a3b8;font-size:11px}
+.orders-table .order-invoice{font-weight:600;display:block}
+.orders-table .order-reference{display:block;font-size:11px;color:#64748b;margin-top:3px}
+.orders-table .order-product{font-weight:500;min-width:150px}
+.orders-table .order-date{font-size:11px;color:#64748b;min-width:95px}
+.orders-table .order-status-pill{display:inline-block;max-width:160px;border-radius:6px;padding:4px 8px;font-size:10px;line-height:1.4;font-weight:600;box-shadow:inset 0 0 0 1px rgba(15,23,42,.08);color:#334155}
+.orders-table .order-merged{display:inline-block;padding:1px 5px;border-radius:4px;background:#fff7df;color:#92400e;font-size:10px;margin-top:4px}
+.orders-table .order-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;white-space:nowrap}
+.orders-table .order-actions .orders-button{padding:5px 8px;min-height:30px;font-size:11px}
+.orders-table .order-notes-count{border-radius:4px;background:#e8edf3;padding:0 4px;color:#475569;font-size:10px}
+.orders-table .order-alert{margin-top:6px;font-size:11px;font-weight:400;color:#b45309}
+.orders-table .order-alert summary{cursor:pointer}.orders-table .order-alert p{margin:2px 0}
+.orders-table .orders-empty{padding:48px 20px;text-align:center;color:#64748b}
+.orders-empty strong{display:block;margin-bottom:5px;color:#334155;font-size:14px}
+.orders-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 16px;border-top:1px solid #edf1f5;color:#64748b;font-size:12px}
+.orders-pagination{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+.orders-pagination a,.orders-pagination .orders-current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:30px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px}
+.orders-pagination .orders-current{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;font-weight:600}
+.orders-pagination a:hover{background:#f8fafc;text-decoration:none}
+.orders-pagination .orders-ellipsis{padding:0 3px}
+@media(max-width:600px){.orders-heading{align-items:flex-start}.orders-heading h2{font-size:20px}.orders-filter-form{gap:10px;padding:12px}.orders-filter-field{flex-basis:100%}.orders-visibility{padding:10px 12px}.orders-footer{padding:12px}}
+</style>
+<header class="orders-heading">
+<div><h2>Orders</h2><p>Track progress, review details, and manage follow-ups.</p></div>
+<a class="orders-button orders-button-primary" href="<?=$siteUrl;?>orders.php?action=add"><span aria-hidden="true">+</span> Add order</a>
 </header>
-<div class="panel-body">
-<div class="form-group">
-<div class="col-md-12">
-<form class="form-horizontal form-bordered" method="get">
+<div class="orders-card">
+<form class="orders-filter-form" method="get">
 <input type="hidden" name="showCompleted" value="<?=$showCompletedOrders ? '1' : '0'?>">
-<select style="width:40%;float:left" class="form-control" name="sID" >
-<option value="">- Select -</option>
+<div class="orders-filter-field">
+<label for="orders-status-filter">Status</label>
+<select name="sID" id="orders-status-filter">
+<option value="">All order statuses</option>
 <?php
 $sqlStus = mysqli_query($conn,"SELECT id,status FROM status ORDER BY id ASC");
 while($rowsStus = mysqli_fetch_assoc($sqlStus)){
-    echo '<option value="'.$rowsStus['id'].'" '.($rowsStus['id']==(isset($_GET['sID']) ? $_GET['sID'] : '')?'selected="selected"':'').' >'.$rowsStus['status'].'</option>';
+    echo '<option value="'.(int)$rowsStus['id'].'" '.((int)$rowsStus['id']===$orderStatusFilter?'selected="selected"':'').'>'.htmlspecialchars((string)$rowsStus['status'], ENT_QUOTES, 'UTF-8').'</option>';
 }
 ?>
 </select>
-<input type="text" style="width:40%;float:left;margin-left:10px;" class="form-control" name="q" value="<?=htmlspecialchars($orderSearch, ENT_QUOTES, 'UTF-8')?>" placeholder="Search" id="inputDefault"  >
-<button class="btn btn-primary" name="submit" value="Submit">GO</button>
-</form> <span class="hintTxt">Search :-  product Designation.</span>
-<div style="margin-top:10px;">
-<a class="btn btn-default" href="<?=htmlspecialchars($orderToggleUrl, ENT_QUOTES, 'UTF-8')?>"><?=$showCompletedOrders ? 'Hide completed orders' : 'Show hidden orders'?></a>
-<span class="text-muted"><?=$showCompletedOrders ? 'Completed orders are included.' : 'Completed orders are hidden.'?></span>
 </div>
+<div class="orders-filter-field orders-filter-search">
+<label for="orders-search">Search orders</label>
+<input type="search" name="q" value="<?=htmlspecialchars($orderSearch, ENT_QUOTES, 'UTF-8')?>" placeholder="Invoice, product, vendor, or customer" id="orders-search">
 </div>
-<div class="col-md-6" align="right">
-&nbsp;
+<button class="orders-button orders-button-primary" type="submit">Search</button>
+</form>
+<div class="orders-visibility">
+<span><?=$showCompletedOrders ? 'Completed orders are included.' : 'Completed orders are hidden.'?></span>
+<a class="orders-button" href="<?=htmlspecialchars($orderToggleUrl, ENT_QUOTES, 'UTF-8')?>"><?=$showCompletedOrders ? 'Hide completed orders' : 'Show hidden orders'?></a>
 </div>
-</div>
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-condensed mb-none orders-table">
+<div class="orders-table-scroll" role="region" aria-label="Orders list" tabindex="0">
+<table class="orders-table">
 <thead>
 <tr>
-<th width="5%">SNo</th>
-<th width="6%">ID</th>
-<th width="11%">Vendor</th>
-<th width="11%">Customer</th>
-<th width="18%">Product Designation</th>
-<th width="10%">Status</th>
-<th width="9%" class="text-center">In-Transit %<br /></th>
-<th width="10%">Created On</th>
-<th width="20%" class="text-center">Action</th>
+<th scope="col">#</th>
+<th scope="col">Invoice / Order</th>
+<th scope="col">Vendor</th>
+<th scope="col">Customer</th>
+<th scope="col">Product</th>
+<th scope="col">Status</th>
+<th scope="col">In transit</th>
+<th scope="col">Created</th>
+<th scope="col" style="text-align:right">Actions</th>
 </tr>
 </thead>
 <tbody>
@@ -1672,57 +1720,29 @@ $statusTextStyle = '';
 if (preg_match('/^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|[a-z]{1,20})$/i', $statusTextColor)) {
     $statusTextStyle = 'color:'.$statusTextColor.' !important;';
 }
-echo '<style type="text/css">table.orders-table > tbody > tr.statusBgTD'.$sno.' > td.order-status-cell{background-color:'.$statusColor.' !important;'.$statusTextStyle.'}</style>';
-echo '<tr class="statusBgTD'.$sno.' order-row">
-<td>&nbsp; '.$sno.'</td>
-<td>'.$rows['invoiceNo'].((isset($mergedInvoiceMap[$rows['invoiceNo']]) && $mergedInvoiceMap[$rows['invoiceNo']] > 1) ? ' <span class="label label-warning">Merged</span>' : '').'<strong><br>'.$rows['documentOrderNo'].'</strong></td>
-<td>'.$rows['vdr'].'</td>
-<td>'.$rows['applicantName'].'</td>
-<td>'.$rows['prodName'];
-if($msgTxt){echo '<div class="alert alert-danger smlTxt"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong><p>Error Fields :-</p> '.$msgTxt.'</strong></div>';}
+$orderViewUrl = 'orders.php?action=view&amp;id=' . (int)$rows['id'];
+$invoiceLabel = trim((string)$rows['invoiceNo']) !== '' ? $rows['invoiceNo'] : '#' . (int)$rows['id'];
+echo '<tr class="order-row">
+<td class="order-number">'.$sno.'</td>
+<td><a class="order-invoice" href="'.$orderViewUrl.'">'.htmlspecialchars((string)$invoiceLabel, ENT_QUOTES, 'UTF-8').'</a>'.((isset($mergedInvoiceMap[$rows['invoiceNo']]) && $mergedInvoiceMap[$rows['invoiceNo']] > 1) ? ' <span class="order-merged">Merged</span>' : '').'<span class="order-reference">'.htmlspecialchars((string)$rows['documentOrderNo'], ENT_QUOTES, 'UTF-8').'</span></td>
+<td>'.htmlspecialchars((string)$rows['vdr'], ENT_QUOTES, 'UTF-8').'</td>
+<td>'.htmlspecialchars((string)$rows['applicantName'], ENT_QUOTES, 'UTF-8').'</td>
+<td class="order-product">'.htmlspecialchars((string)$rows['prodName'], ENT_QUOTES, 'UTF-8');
+if($msgTxt){echo '<details class="order-alert"><summary>Missing order details</summary>'.$msgTxt.'</details>';}
 echo '</td>
-<td class="order-status-cell">'.$rows['statusName'].'</td>
-<td align="center">'.$getRDStg.'</td>
-<td align="center">'.viewDtTm($rows['createdDate']).'</td>
-<td align="center"><div class="table-action-buttons">
-<a title="View order" aria-label="View order" class="btn btn-default viewBtn icon-action" href="orders.php?action=view&id='.$rows['id'].'"><i class="fa fa-eye" aria-hidden="true"></i><span class="sr-only">View</span></a>
-<a title="Order notes ('.$rows['noteCount'].')" aria-label="Order notes ('.$rows['noteCount'].')" class="btn btn-default notsBtn icon-action" href="orderNotes.php?oID='.$rows['id'].'"><i class="fa fa-file-text-o" aria-hidden="true"></i><span class="sr-only">Notes</span><span class="action-count">'.$rows['noteCount'].'</span></a>
-<a title="Add task" aria-label="Add task" class="btn btn-default addTaskBtn icon-action" href="tasks.php?action=add&orderID='.$rows['id'].'"><i class="fa fa-tasks" aria-hidden="true"></i><span class="sr-only">Add Task</span></a>
+<td><span class="order-status-pill" style="background-color:'.$statusColor.';'.$statusTextStyle.'">'.htmlspecialchars((string)$rows['statusName'], ENT_QUOTES, 'UTF-8').'</span></td>
+<td>'.($getRDStg !== '' ? $getRDStg : '<span aria-label="Not available">&mdash;</span>').'</td>
+<td class="order-date">'.htmlspecialchars((string)viewDtTm($rows['createdDate']), ENT_QUOTES, 'UTF-8').'</td>
+<td><div class="order-actions">
+<a class="orders-button" href="'.$orderViewUrl.'">View <span aria-hidden="true">&rarr;</span></a>
+<a title="Order notes" class="orders-button" href="orderNotes.php?oID='.(int)$rows['id'].'">Notes <span class="order-notes-count">'.(int)$rows['noteCount'].'</span></a>
+<a class="orders-button" href="tasks.php?action=add&amp;orderID='.(int)$rows['id'].'">+ Task</a>
 </div></td>
 </tr>';
 }
-?>
-<tr>
-<td colspan="9">
-<?php
-echo "<table align = 'center' width='100%'><tr><td  align='left' width='30%'>";
-if($back >=0) {
-    print "<a href='$page_name&start=$back'><font face='Verdana' size='2'>PREV</font></a>";
-}
-echo "</td><td align=center width='30%'>Page:";
-$i=0;
-$l=1;
-$total=0;
-for($i=0;$i < $nume;$i=$i+$limit){
-    if($i <> $eu){
-        echo " <a href='$page_name&start=$i'><font face='Verdana' size='2'>$l</font></a> ";
-    }
-    else {
-        echo "<font face='Verdana' size='2' color=red>$l</font>";
-    }
-    $l=$l+1;
-    $total = $total+1;
-}
-echo " of $total</td><td  align='right' width='30%'>";
-if($this1 < $nume) {
-    print "<a href='$page_name&start=$next'><font face='Verdana' size='2'>NEXT</font></a>";}
-echo "</td></tr></table>";
-?>
-</td>
-</tr><?php
 }else{
     echo "<tr>
-<td colspan='9' align='center'>No Data Found.</td>
+<td colspan='9' class='orders-empty'><strong>No orders found</strong>Try another search or status filter.</td>
 </tr>";
 }
 ?>
@@ -1730,6 +1750,36 @@ echo "</td></tr></table>";
 </tbody>
 </table>
 </div>
+<footer class="orders-footer">
+<span><?php
+if (mysqli_num_rows($resultSeller) > 0) {
+    echo 'Showing '.number_format($start + 1).'&ndash;'.number_format(min($start + $limit, $nume)).' of '.number_format($nume).' orders';
+} else {
+    echo number_format($nume).' matching orders';
+}
+?></span>
+<?php
+$totalPages = (int)ceil($nume / $limit);
+$currentPage = (int)floor($start / $limit) + 1;
+if ($totalPages > 1) {
+    echo '<nav class="orders-pagination" aria-label="Orders pages">';
+    if ($back >= 0) echo '<a href="'.$page_name.'&amp;start='.$back.'">Previous</a>';
+    $lastPageShown = 0;
+    for ($page = 1; $page <= $totalPages; $page++) {
+        if ($page !== 1 && $page !== $totalPages && abs($page - $currentPage) > 2) continue;
+        if ($lastPageShown && $page > $lastPageShown + 1) echo '<span class="orders-ellipsis" aria-hidden="true">&hellip;</span>';
+        if ($page === $currentPage) {
+            echo '<span class="orders-current" aria-current="page">'.$page.'</span>';
+        } else {
+            echo '<a aria-label="Page '.$page.'" href="'.$page_name.'&amp;start='.(($page - 1) * $limit).'">'.$page.'</a>';
+        }
+        $lastPageShown = $page;
+    }
+    if ($this1 < $nume) echo '<a href="'.$page_name.'&amp;start='.$next.'">Next</a>';
+    echo '</nav>';
+}
+?>
+</footer>
 </div>
 </section>
 </section>

@@ -17,9 +17,10 @@ $pendingOtp = $_SESSION['admin_login_pending'] ?? null;
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-datepicker/css/datepicker3.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css">
+<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=1" media="screen">
 <script src="<?=$siteUrl;?>assets/vendor/modernizr/modernizr.js"></script>
 </head>
-<body>
+<body class="admin-modern">
 <section class="body-sign">
 <div class="center-sign"> <a href="index.php" class="logo pull-left"> <img src="<?=$siteUrl;?>assets/images/logo.png" height="54" alt="Admin" /> </a>
 <div class="panel panel-sign">

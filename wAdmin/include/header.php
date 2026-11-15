@@ -25,10 +25,11 @@ header("location: toDo.php?act=1");
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-multiselect/bootstrap-multiselect.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css">
+<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=1" media="screen">
 <script src="<?=$siteUrl;?>assets/vendor/modernizr/modernizr.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/jquery/jquery.js"></script>
 </head>
-<body>
+<body class="admin-modern">
 <section class="body">
 <header class="header">
 <div class="logo-container"> <a href="<?=$siteUrl?>" class="logo"> <img src="<?=$siteUrl;?>assets/images/logo.png" height="35" alt="Admin" /> </a>

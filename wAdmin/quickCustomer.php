@@ -62,8 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap/css/bootstrap.css">
 <style>body{padding:18px;background:#fff}.form-group{margin-bottom:12px}.required-note{color:#777}</style>
+<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=1" media="screen">
 </head>
-<body>
+<body class="admin-modern admin-quick-entry">
 <div class="container-fluid">
 <?php if ($error !== ''): ?><div class="alert alert-danger"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8');?></div><?php endif; ?>
 <form method="post">

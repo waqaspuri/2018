@@ -35,8 +35,9 @@ if ($phpUploadLimitBytes > 0) {
     $maxAttachmentFileBytes = min($maxAttachmentFileBytes, $phpUploadLimitBytes);
 }
 
-$recipientType = ($_POST['recipientType'] ?? $_GET['recipientType'] ?? 'customer') === 'vendor' ? 'vendor' : 'customer';
-$typeID = $recipientType === 'vendor' ? 2 : 1;
+$recipientType = (string)($_POST['recipientType'] ?? $_GET['recipientType'] ?? 'customer');
+if (!in_array($recipientType, array('customer', 'contact', 'vendor'), true)) $recipientType = 'customer';
+$typeID = $recipientType === 'vendor' ? 2 : ($recipientType === 'contact' ? 3 : 1);
 $requestedChannel = (string)($_POST['channel'] ?? $_GET['channel'] ?? 'email');
 $channel = in_array($requestedChannel, array('email', 'sms', 'whatsapp'), true) ? $requestedChannel : 'email';
 $notice = (string)($_SESSION['bulkMessageNotice'] ?? '');
@@ -110,6 +111,10 @@ function buildBulkWhatsAppPreviews($conn, $ids, $templateKey, $templates, $campa
     while ($result && ($recipient = mysqli_fetch_assoc($result))) {
         $phone = bulkWhatsAppPhone($recipient['mobileNumber'] ?? '');
         $name = trim((string)($recipient['companyName'] ?? '')) ?: (trim((string)($recipient['applicantName'] ?? '')) ?: 'Customer #' . (int)$recipient['id']);
+        if (!agentRecipientChannelEnabled($conn, (int)$recipient['id'], 'whatsapp')) {
+            $errors[] = $name . ': WhatsApp notifications are disabled.';
+            continue;
+        }
         if ($phone === '') {
             $errors[] = $name . ': invalid or missing WhatsApp number (use E.164, e.g. +923001234567).';
             continue;
@@ -177,7 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 $status = $success ? 'SENT: HTTP ' . $httpCode . ' - ' . json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : 'FAILED: ' . ($curlError !== '' ? $curlError : ('HTTP ' . $httpCode . ' - ' . ($responseData['message'] ?? 'WhatsApp API rejected the request.')));
                 $logBody = $preview['body'];
                 $logBody['token'] = '[REDACTED]';
-                $logResult = insertSMSLog('WHATSAPP: ' . $body['sendTo'], json_encode($logBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), substr($status, 0, 250), $logTime);
+                $logBody['recipient'] = $preview['recipient'];
+                $logResult = insertSMSLog('WHATSAPP: ' . $body['sendTo'] . ' | ' . $preview['recipient'], json_encode($logBody, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), substr($status, 0, 250), $logTime);
                 if ($success) {
                     $sent++;
                     if (count($deliveryReport) < 100) $deliveryReport[] = $preview['recipient'] . ' (' . $body['sendTo'] . '): WhatsApp sent.';
@@ -188,7 +194,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 if ($logResult !== true && count($deliveryReport) < 100) $deliveryReport[] = 'Could not save WhatsApp log for ' . $body['sendTo'] . ': ' . (string)$logResult;
             }
         }
-        foreach ($whatsAppPreviewErrors as $recipientError) if (count($deliveryReport) < 100) $deliveryReport[] = 'Skipped: ' . $recipientError;
+        foreach ($whatsAppPreviewErrors as $recipientError) {
+            if (count($deliveryReport) < 100) $deliveryReport[] = 'Skipped: ' . $recipientError;
+            insertSMSLog(
+                'WHATSAPP: unavailable | skipped recipient',
+                json_encode(array('recipient' => $recipientError, 'source' => 'bulk'), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'SKIPPED: notification preference or destination validation',
+                $logTime
+            );
+        }
         $notice = $fatalWhatsAppErrors ? implode(' ', $fatalWhatsAppErrors) : 'WhatsApp dispatch finished: ' . $sent . ' sent, ' . $failed . ' failed, ' . count($whatsAppPreviewErrors) . ' skipped.';
         $noticeClass = $fatalWhatsAppErrors || $failed || $whatsAppPreviewErrors ? 'warning' : 'success';
         $_SESSION['bulkMessageNotice'] = $notice;
@@ -298,6 +312,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
             if ($recipientName === '') {
                 $recipientName = trim((string)($recipient['applicantName'] ?? '')) ?: 'Recipient #' . (int)$recipient['id'];
             }
+            if (!agentRecipientChannelEnabled($conn, (int)$recipient['id'], $channel)) {
+                $skipped++;
+                $reason = $recipientName . ': skipped (' . strtoupper($channel) . ' notifications disabled).';
+                $addDeliveryReport($reason);
+                insertCommunicationLog($channel, $recipientName, $to, $message, 'SKIPPED: notification preference disabled', array('source' => 'bulk'));
+                continue;
+            }
             if ($to === '') {
                 $skipped++;
                 $reason = $recipientName . ': skipped (no ' . ($channel === 'email' ? 'email address' : 'mobile number') . ').';
@@ -339,7 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 ob_start();
                 try {
                     $plainTextMessage = html_entity_decode(strip_tags($personalMessage), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                    $smsResponse = sendSMS($to, $plainTextMessage);
+                    $smsResponse = sendSMS($to, $plainTextMessage, $recipientName, array('source' => 'bulk'));
                     if (strcasecmp(trim((string)$smsResponse), 'OK') === 0) {
                         $sent++;
                         $addDeliveryReport($recipientName . ' (' . $to . '): SMS sent.');
@@ -404,7 +425,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sendBulk'])) {
                 if ($uploadedAttachments) {
                     $emailLogSubject .= ' [attachments: ' . implode(', ', array_column($uploadedAttachments, 'name')) . ']';
                 }
-                $logResult = insertSMSLog('EMAIL: ' . $to, $emailLogSubject, $emailStatus, $logTime);
+                $emailLogContent = "Subject: " . $emailLogSubject . "\n\n" . html_entity_decode(strip_tags($personalMessage), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $logResult = insertCommunicationLog('email', $recipientName, $to, $emailLogContent, $emailStatus, array('source' => 'bulk'));
                 if ($logResult !== true) {
                     $addDeliveryReport('Could not save email log for ' . $to . ': ' . (string)$logResult);
                 }
@@ -469,6 +491,7 @@ include "include/header.php";
 <form method="get" class="form-inline" style="margin-bottom:18px" id="recipientTypeForm">
 <span class="text-bold">Recipient type&nbsp;</span>
 <label class="radio-inline"><input type="radio" name="recipientType" value="customer" <?=$recipientType === 'customer' ? 'checked' : '';?> onchange="this.form.submit()"> Customer</label>
+<label class="radio-inline"><input type="radio" name="recipientType" value="contact" <?=$recipientType === 'contact' ? 'checked' : '';?> onchange="this.form.submit()"> Customer contact</label>
 <label class="radio-inline"><input type="radio" name="recipientType" value="vendor" <?=$recipientType === 'vendor' ? 'checked' : '';?> onchange="this.form.submit()"> Vendor</label>
 </form>
 <form method="post" id="bulkMessageForm" enctype="multipart/form-data" onsubmit="return confirmBulkSend(event)">

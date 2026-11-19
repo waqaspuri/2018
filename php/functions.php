@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/order_agents.php";
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 error_reporting(E_ALL);
@@ -206,7 +207,7 @@ function assignToName($id)
   if (!$rows) {
     return 'Erased';
   }
-  return ($rows['companyName'] ?? 'Erased') . ' (' . ((($rows['type'] ?? '') == '1') ? 'Customer' : 'Vendor') . ')';
+  return ($rows['companyName'] ?? 'Erased') . ' (' . ((int)($rows['type'] ?? 0) === 4 ? 'Agent' : ((($rows['type'] ?? '') == '1') ? 'Customer' : 'Vendor')) . ')';
 }
 function companyName($id)
 {
@@ -226,6 +227,7 @@ function whatsApp($id)
 
 function typeNm($id)
 {
+  if ((int)$id === 4) return "Agent";
   global $conn;
   $sql = mysqli_query($conn, "SELECT type FROM type where id='" . $id . "'");
   $rows = mysqli_fetch_assoc($sql);
@@ -516,7 +518,7 @@ $userName = "923424859921";
 $password = "gbKg2i01bf2ExE1pG7";
 $mask = "WAQASCHM";
 
-function sendSMS($mobile, $msg)
+function sendSMS($mobile, $msg, $recipientName = '', $context = array())
 {
 
 
@@ -579,9 +581,33 @@ function sendSMS($mobile, $msg)
 
     }
 
-    insertSMSLog($client, $data, $response, $date);
+    $logData = array(
+      'recipient' => (string)$recipientName,
+      'destination' => (string)$mobile,
+      'message' => urldecode((string)$msg),
+      'gateway_id' => (string)$data,
+      'context' => is_array($context) ? $context : array()
+    );
+    insertSMSLog('SMS: ' . $client . ($recipientName !== '' ? ' | ' . $recipientName : ''), json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $response, $date);
     return (string)$response;
   }
+}
+
+function insertCommunicationLog($channel, $recipientName, $destination, $content, $status, $context = array())
+{
+  $channel = strtoupper((string)$channel);
+  $payload = array(
+    'recipient' => (string)$recipientName,
+    'destination' => (string)$destination,
+    'content' => (string)$content,
+    'context' => is_array($context) ? $context : array()
+  );
+  return insertSMSLog(
+    $channel . ': ' . (string)$destination . ($recipientName !== '' ? ' | ' . (string)$recipientName : ''),
+    json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    (string)$status,
+    date('l, d-m-y h:i:s a')
+  );
 }
 
 

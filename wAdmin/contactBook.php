@@ -110,10 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['importContacts'])) {
 
 if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="add"){
-mysqli_query($conn,"INSERT INTO customers (bankName,bankBranch,isOtherCustomer,assignToID,type,applicantName,companyName,mobileNumber,email,email2,phoneNumber,isEnableEmail,address,city,country,appAddress,appCity,appCountry,appSwiftCode,appIBAN,appAccountNo,moreInfo,createdDate) VALUES ('','','".mysqli_real_escape_string($conn,($_POST['isOtherCustomer'] ?? '0'))."','".mysqli_real_escape_string($conn,($_POST['assignToID'] ?? ''))."','3','".mysqli_real_escape_string($conn,($_POST['applicantName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['companyName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['mobileNumber'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['phoneNumber'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['isEnableEmail'] ?? '0'))."','".mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."','','','','','','','".mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."','".currDateTimeGmt()."')");
+mysqli_query($conn,"INSERT INTO customers (bankName,bankBranch,isOtherCustomer,assignToID,type,applicantName,companyName,mobileNumber,email,email2,phoneNumber,isEnableEmail,isEnableSMS,isEnableWhatsApp,address,city,country,appAddress,appCity,appCountry,appSwiftCode,appIBAN,appAccountNo,moreInfo,createdDate) VALUES ('','','".mysqli_real_escape_string($conn,($_POST['isOtherCustomer'] ?? '0'))."','".mysqli_real_escape_string($conn,($_POST['assignToID'] ?? ''))."','3','".mysqli_real_escape_string($conn,($_POST['applicantName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['companyName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['mobileNumber'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['phoneNumber'] ?? ''))."','".(isset($_POST['isEnableEmail'])?1:0)."','".(isset($_POST['isEnableSMS'])?1:0)."','".(isset($_POST['isEnableWhatsApp'])?1:0)."','".mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."','','','','','','','".mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."','".currDateTimeGmt()."')");
 header("location: contactBook.php?act=1");
 }else if(isset($_POST['action']) && $_POST['action']=="update"){
-mysqli_query($conn,"UPDATE customers SET isOtherCustomer='". mysqli_real_escape_string($conn,($_POST['isOtherCustomer'] ?? '0'))."',assignToID='". mysqli_real_escape_string($conn,($_POST['assignToID'] ?? ''))."',applicantName='". mysqli_real_escape_string($conn,($_POST['applicantName'] ?? ''))."',companyName='". mysqli_real_escape_string($conn,($_POST['companyName'] ?? ''))."',mobileNumber='". mysqli_real_escape_string($conn,($_POST['mobileNumber'] ?? ''))."',email='". mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."',phoneNumber='". mysqli_real_escape_string($conn,($_POST['phoneNumber'] ?? ''))."',isEnableEmail='". mysqli_real_escape_string($conn,($_POST['isEnableEmail'] ?? '0'))."',address='". mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."',city='". mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."',country='". mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."',moreInfo='". mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."' WHERE id='".mysqli_real_escape_string($conn,($_POST['id'] ?? ''))."'");	
+mysqli_query($conn,"UPDATE customers SET isOtherCustomer='". mysqli_real_escape_string($conn,($_POST['isOtherCustomer'] ?? '0'))."',assignToID='". mysqli_real_escape_string($conn,($_POST['assignToID'] ?? ''))."',applicantName='". mysqli_real_escape_string($conn,($_POST['applicantName'] ?? ''))."',companyName='". mysqli_real_escape_string($conn,($_POST['companyName'] ?? ''))."',mobileNumber='". mysqli_real_escape_string($conn,($_POST['mobileNumber'] ?? ''))."',email='". mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."',phoneNumber='". mysqli_real_escape_string($conn,($_POST['phoneNumber'] ?? ''))."',isEnableEmail='".(isset($_POST['isEnableEmail'])?1:0)."',isEnableSMS='".(isset($_POST['isEnableSMS'])?1:0)."',isEnableWhatsApp='".(isset($_POST['isEnableWhatsApp'])?1:0)."',address='". mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."',city='". mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."',country='". mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."',moreInfo='". mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."' WHERE id='".mysqli_real_escape_string($conn,($_POST['id'] ?? ''))."'");	
 header("location: contactBook.php?act=2");
 }
 }
@@ -129,7 +129,7 @@ $rowsEdit = mysqli_fetch_assoc($sqlEdit);
 if (!is_array($rowsEdit)) {
 $rowsEdit = array();
 }
-$rowsEdit = array_merge(array('isEnableEmail' => '0', 'isOtherCustomer' => '0'), $rowsEdit);
+$rowsEdit = array_merge(array('isEnableEmail' => '1', 'isEnableSMS' => '1', 'isEnableWhatsApp' => '1', 'isOtherCustomer' => '0'), $rowsEdit);
 extract($rowsEdit);
 $action = "update";
 $hdTxt="Update";
@@ -141,7 +141,7 @@ $rowsEdit = mysqli_fetch_assoc($sqlEdit);
 if (!is_array($rowsEdit)) {
 $rowsEdit = array();
 }
-$rowsEdit = array_merge(array('isEnableEmail' => '0', 'isOtherCustomer' => '0'), $rowsEdit);
+$rowsEdit = array_merge(array('isEnableEmail' => '1', 'isEnableSMS' => '1', 'isEnableWhatsApp' => '1', 'isOtherCustomer' => '0'), $rowsEdit);
 extract($rowsEdit);
 ?>
 <section role="main" class="content-body">
@@ -326,9 +326,13 @@ extract($rowsEdit);
 </div>
 </div>
 <div class="col-md-6">
-<label class="col-md-3 control-label" for="inputDefault">Enable</label>
+<label class="col-md-3 control-label" for="inputDefault">Notifications</label>
 <div class="col-md-8">
-<div class="paddingTxt"><input type="checkbox" name="isEnableEmail" value="1" <?=($rowsEdit['isEnableEmail']=='1')?'checked="checked"':'';?> > On Email Notification </div>
+<div class="paddingTxt">
+<label class="checkbox-inline"><input type="checkbox" name="isEnableEmail" value="1" <?=($rowsEdit['isEnableEmail']=='1')?'checked="checked"':'';?>> Enable email</label>
+<label class="checkbox-inline"><input type="checkbox" name="isEnableSMS" value="1" <?=($rowsEdit['isEnableSMS']=='1')?'checked="checked"':'';?>> Enable SMS</label>
+<label class="checkbox-inline"><input type="checkbox" name="isEnableWhatsApp" value="1" <?=($rowsEdit['isEnableWhatsApp']=='1')?'checked="checked"':'';?>> Enable WhatsApp messages</label>
+</div>
 </div>
 </div>
 </div>
@@ -351,7 +355,7 @@ extract($rowsEdit);
 <select class="selectpicker form-control" data-selected-text-format="values" name="assignToID" id="assignToID" data-live-search="true" data-live-search-placeholder="Search" >
 <option value="">- Select -</option>
 <?php
-$sqlVndrCtmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE type<>'3' ORDER BY companyName ASC");
+$sqlVndrCtmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE type IN (1,2) ORDER BY companyName ASC");
 while($rowsVC = mysqli_fetch_assoc($sqlVndrCtmr)){						
 echo '<option value="'.$rowsVC['id'].'" '.(($rowsVC['id']==$assignToID)?'selected="selected"':'').' >'.$rowsVC['companyName'].' ('.(($rowsVC['type']=='1')?'Customer':'Vendor').') </option>';
 }
@@ -494,6 +498,10 @@ echo '<tr>
 <td align="center">
 <a title="View this record" class="btn btn-default viewBtn" href="contactBook.php?action=view&id='.$rows['id'].'">View</a>
 <a title="Edit this record" class="btn btn-default editBtn" href="contactBook.php?action=edit&id='.$rows['id'].'">Edit</a>
+<form method="post" action="agents.php" style="display:inline">
+<input type="hidden" name="agent_csrf" value="'.agentEscape(agentCsrfToken()).'">
+<button type="submit" class="btn btn-default" name="duplicateContact" value="'.(int)$rows['id'].'">Duplicate as Agent</button>
+</form>
 <a title="Delete this record" class="btn btn-default delBtn" onclick="return confirm(\'Are you sure you want to delete?\');" href="contactBook.php?act=delete&id='.$rows['id'].'">Delete</a>
 </td>
 </tr>';

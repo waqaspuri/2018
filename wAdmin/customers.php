@@ -3,11 +3,11 @@ include "include/sessionAdmin.php";
 include "include/configure.php";
 if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="add"){
-mysqli_query($conn,"INSERT INTO customers (bankName,bankBranch,type,companyName,applicantName,address,city,country,mobileNumber,phoneNumber,email,email2,appAddress,appCity,appCountry,appSwiftCode,appIBAN,appAccountNo,moreInfo,createdDate,isEnableEmail,assignToID,isOtherCustomer) VALUES 
-('".mysqli_real_escape_string($conn,($_POST['bankName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['bankBranch'] ?? ''))."','1','".mysqli_real_escape_string($conn,$_POST['companyName'])."','".mysqli_real_escape_string($conn,$_POST['applicantName'])."','".mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."','".mysqli_real_escape_string($conn,$_POST['mobileNumber'])."','".mysqli_real_escape_string($conn,$_POST['mobileNumber'])."','".mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appAddress'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appCity'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appCountry'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appSwiftCode'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appIBAN'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appAccountNo'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."','".currDateTimeGmt()."','1','0','0')");
+mysqli_query($conn,"INSERT INTO customers (bankName,bankBranch,type,companyName,applicantName,address,city,country,mobileNumber,phoneNumber,email,email2,appAddress,appCity,appCountry,appSwiftCode,appIBAN,appAccountNo,moreInfo,createdDate,isEnableEmail,isEnableSMS,isEnableWhatsApp,assignToID,isOtherCustomer) VALUES 
+('".mysqli_real_escape_string($conn,($_POST['bankName'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['bankBranch'] ?? ''))."','1','".mysqli_real_escape_string($conn,$_POST['companyName'])."','".mysqli_real_escape_string($conn,$_POST['applicantName'])."','".mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."','".mysqli_real_escape_string($conn,$_POST['mobileNumber'])."','".mysqli_real_escape_string($conn,$_POST['mobileNumber'])."','".mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appAddress'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appCity'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appCountry'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appSwiftCode'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appIBAN'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['appAccountNo'] ?? ''))."','".mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."','".currDateTimeGmt()."','".(isset($_POST['isEnableEmail'])?1:0)."','".(isset($_POST['isEnableSMS'])?1:0)."','".(isset($_POST['isEnableWhatsApp'])?1:0)."','0','0')");
 header("location: customers.php?act=1");
 }else if(isset($_POST['action']) && $_POST['action']=="update"){
-mysqli_query($conn,"UPDATE customers SET bankName='". mysqli_real_escape_string($conn,($_POST['bankName'] ?? ''))."',bankBranch='". mysqli_real_escape_string($conn,($_POST['bankBranch'] ?? ''))."',companyName='". mysqli_real_escape_string($conn,$_POST['companyName'])."',applicantName='". mysqli_real_escape_string($conn,$_POST['applicantName'])."',address='". mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."',city='". mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."',country='". mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."',mobileNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',phoneNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',email='". mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."',email2='". mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."',appAddress='". mysqli_real_escape_string($conn,($_POST['appAddress'] ?? ''))."',appCity='". mysqli_real_escape_string($conn,($_POST['appCity'] ?? ''))."',appCountry='". mysqli_real_escape_string($conn,($_POST['appCountry'] ?? ''))."',appIBAN='". mysqli_real_escape_string($conn,($_POST['appIBAN'] ?? ''))."',appAccountNo='". mysqli_real_escape_string($conn,($_POST['appAccountNo'] ?? ''))."',appSwiftCode='". mysqli_real_escape_string($conn,($_POST['appSwiftCode'] ?? ''))."',moreInfo='". mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."' WHERE id='".$_POST['id']."'");	
+mysqli_query($conn,"UPDATE customers SET bankName='". mysqli_real_escape_string($conn,($_POST['bankName'] ?? ''))."',bankBranch='". mysqli_real_escape_string($conn,($_POST['bankBranch'] ?? ''))."',companyName='". mysqli_real_escape_string($conn,$_POST['companyName'])."',applicantName='". mysqli_real_escape_string($conn,$_POST['applicantName'])."',address='". mysqli_real_escape_string($conn,($_POST['address'] ?? ''))."',city='". mysqli_real_escape_string($conn,($_POST['city'] ?? ''))."',country='". mysqli_real_escape_string($conn,($_POST['country'] ?? ''))."',mobileNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',phoneNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',email='". mysqli_real_escape_string($conn,($_POST['email'] ?? ''))."',email2='". mysqli_real_escape_string($conn,($_POST['email2'] ?? ''))."',isEnableEmail='".(isset($_POST['isEnableEmail'])?1:0)."',isEnableSMS='".(isset($_POST['isEnableSMS'])?1:0)."',isEnableWhatsApp='".(isset($_POST['isEnableWhatsApp'])?1:0)."',appAddress='". mysqli_real_escape_string($conn,($_POST['appAddress'] ?? ''))."',appCity='". mysqli_real_escape_string($conn,($_POST['appCity'] ?? ''))."',appCountry='". mysqli_real_escape_string($conn,($_POST['appCountry'] ?? ''))."',appIBAN='". mysqli_real_escape_string($conn,($_POST['appIBAN'] ?? ''))."',appAccountNo='". mysqli_real_escape_string($conn,($_POST['appAccountNo'] ?? ''))."',appSwiftCode='". mysqli_real_escape_string($conn,($_POST['appSwiftCode'] ?? ''))."',moreInfo='". mysqli_real_escape_string($conn,($_POST['moreInfo'] ?? ''))."' WHERE id='".$_POST['id']."'");	
 header("location: customers.php?act=2");
 }
 }
@@ -30,6 +30,7 @@ $appIBAN = "";
 $appSwiftCode = "";
 $moreInfo = "";
 $id = "";
+$isEnableEmail = $isEnableSMS = $isEnableWhatsApp = 1;
 $action = "add";
 $hdTxt="Add New";
 if(isset($_GET['action']) && $_GET['action']=="edit"){
@@ -273,6 +274,14 @@ echo "<tr>
 <div class="col-md-8">
 <input type="text" class="form-control" name="email2" value="<?=$email2?>" id="inputDefault" >
 </div>
+</div>
+</div>
+<div class="form-group">
+<label class="col-md-2 control-label">Notifications</label>
+<div class="col-md-9 paddingTxt">
+<label class="checkbox-inline"><input type="checkbox" name="isEnableEmail" value="1" <?=$isEnableEmail?'checked':'';?>> Enable email</label>
+<label class="checkbox-inline"><input type="checkbox" name="isEnableSMS" value="1" <?=$isEnableSMS?'checked':'';?>> Enable SMS</label>
+<label class="checkbox-inline"><input type="checkbox" name="isEnableWhatsApp" value="1" <?=$isEnableWhatsApp?'checked':'';?>> Enable WhatsApp messages</label>
 </div>
 </div>
 

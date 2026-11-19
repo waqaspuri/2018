@@ -173,7 +173,7 @@ if(in_array('immediate', $sendBy, true)){
 
 				//$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.documentOrderNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='".$rowsEp['orderID']."' ");
 				$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
-				$assignToAry = @explode(",",$rowsEp['assignTo']);
+				$assignToAry = filterAgentRecipientsByChannel($conn, orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']), 'email');
 
 				if(count($assignToAry)>0){
 
@@ -202,7 +202,7 @@ if(in_array('immediate', $sendBy, true)){
 							'product_name'    => $rowsOrdrInfo['prodName'],
 							'document_order_number'    => $rowsOrdrInfo['documentOrderNo'],
 							'proforma_invoice'    => $rowsOrdrInfo['invoiceNo'],
-							'second_email'    => $rowsOrdrInfo['email2'],
+							'second_email'    => ($rowsCtBk['email2'] ?? ''),
 							'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 							'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 							'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -253,6 +253,7 @@ if(in_array('immediate', $sendBy, true)){
                         $mail->Body = appendConfiguredEmailFooter($conn, $message);
                         attachTaskFilesToEmail($mail, $conn, $rowsEp['id']);
                         $mail->send();
+                        insertCommunicationLog('email', trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), $to, "Subject: ".$subject."\n\n".html_entity_decode(strip_tags($message), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'SENT', array('source'=>'task','task_id'=>(int)$rowsEp['id']));
 
 
 						
@@ -278,15 +279,15 @@ if(in_array('immediate', $sendBy, true)){
 			//Order Info
 		$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 			$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
-			$assignToAry = @explode(",",$rowsEp['assignTo']);
+			$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 			if(count($assignToAry)>0){
 				foreach($assignToAry as $assignToVal){
 
 
-					$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
+					$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,email2,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
 					$rowsCtBk = mysqli_fetch_assoc($sqlCtBk);
 					$sendByAry = @explode(",",$rowsEp['sendBy']);
-						if($rowsCtBk['mobileNumber']){
+						if($rowsCtBk['mobileNumber'] && agentRecipientChannelEnabled($conn, $assignToVal, 'sms')){
 
 					$values = array(
 							'unit_price' => $rowsOrdrInfo['unitPrice'],
@@ -297,7 +298,7 @@ if(in_array('immediate', $sendBy, true)){
 							'product_name'    => $rowsOrdrInfo['prodName'],
 							'document_order_number'    => $rowsOrdrInfo['documentOrderNo'],
 							'proforma_invoice'    => $rowsOrdrInfo['invoiceNo'],
-							'second_email'    => $rowsOrdrInfo['email2'],
+							'second_email'    => ($rowsCtBk['email2'] ?? ''),
 							'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 							'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 							'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -331,7 +332,7 @@ if(in_array('immediate', $sendBy, true)){
 
 					$msg = str_replace($search,$replace,$msg);
 		unset($replace);
-					sendSMS($rowsCtBk['mobileNumber'],$msg);
+					sendSMS($rowsCtBk['mobileNumber'],$msg, trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), array('source'=>'task','task_id'=>(int)$taskID));
 
 					}
 				}
@@ -554,7 +555,7 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
 
                 $sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName,c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."'");
                 $rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo) ?: array('unitPrice'=>'','quantity'=>'','totalAmt'=>'','orderDelievery'=>'','orderPackaging'=>'','prodName'=>'','documentOrderNo'=>'','invoiceNo'=>'','email2'=>'','eta'=>'','dta'=>'','latestDateShipment'=>'','billNo'=>'','expiryDate'=>'','newETA'=>'','paymentTerms'=>'','shippingDocInfo'=>'');
-                $assignToAry  = explode(",", $rowsEp['assignTo']);
+                $assignToAry = filterAgentRecipientsByChannel($conn, orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']), 'email');
 
                 foreach($assignToAry as $assignToVal){
 
@@ -583,7 +584,7 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                         'product_name'          => $rowsOrdrInfo['prodName'],
                         'document_order_number' => $rowsOrdrInfo['documentOrderNo'],
                         'proforma_invoice'      => $rowsOrdrInfo['invoiceNo'],
-                        'second_email'          => ($rowsOrdrInfo['email2'] ?? ''),
+                        'second_email'          => ($rowsCtBk['email2'] ?? ''),
                         'arrival_date'          => viewDateFormat($rowsOrdrInfo['eta']),
                         'departure_date'        => viewDateFormat($rowsOrdrInfo['dta']),
                         'latest_date_shipment'  => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -619,13 +620,15 @@ if(isset($_GET['action']) && $_GET['action']=="mail"){
                     attachTaskFilesToEmail($mail, $conn, $rowsEp['id']);
                     $mail->Body = appendConfiguredEmailFooter($conn, $mail->Body);
                     $mail->send();
+                    insertCommunicationLog('email', trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), $to, "Subject: ".$subject."\n\n".html_entity_decode(strip_tags($message), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'SENT', array('source'=>'task','task_id'=>(int)$rowsEp['id']));
                     // ---- End PHPMailer ----
                 }
             }
         }
     }
 
-    header("location: tasks.php?action=view&id=".urlencode($_GET['id'])."&act=1");
+    $notificationReport = taskNotificationAttemptSummary($conn, (int)$_GET['id']);
+    header("location: tasks.php?action=view&id=".urlencode($_GET['id'])."&act=1&notificationReport=".rawurlencode($notificationReport));
     exit;
 }
 if(isset($_GET['action']) && $_GET['action']=="SMS"){
@@ -649,13 +652,13 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 
 				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
-		$assignToAry = @explode(",",$rowsEp['assignTo']);
+		$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 		if(count($assignToAry)>0){
 			foreach($assignToAry as $assignToVal){
-				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
+				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,email2,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
 				$rowsCtBk = mysqli_fetch_assoc($sqlCtBk);
 				$sendByAry = @explode(",",$rowsEp['sendBy']);
-					if($rowsCtBk['mobileNumber']){
+					if($rowsCtBk['mobileNumber'] && agentRecipientChannelEnabled($conn, $assignToVal, 'sms')){
 
 
 							$values = array(
@@ -667,7 +670,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 							'product_name'    => $rowsOrdrInfo['prodName'],
 							'document_order_number'    => $rowsOrdrInfo['documentOrderNo'],
 							'proforma_invoice'    => $rowsOrdrInfo['invoiceNo'],
-							'second_email'    => $rowsOrdrInfo['email2'],
+							'second_email'    => ($rowsCtBk['email2'] ?? ''),
 							'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 							'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 							'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -701,7 +704,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 
 					$msg = str_replace($search,$replace,$msg);
 					unset($replace);
-					sendSMS($rowsCtBk['mobileNumber'],$msg);
+					sendSMS($rowsCtBk['mobileNumber'],$msg, trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), array('source'=>'task','task_id'=>(int)$taskID));
 				}
 
 			}
@@ -709,7 +712,8 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 	}
 	}
 }
-header("location: tasks.php?action=view&id=".$_GET['id']."&act=2");
+$notificationReport = taskNotificationAttemptSummary($conn, (int)$_GET['id']);
+header("location: tasks.php?action=view&id=".$_GET['id']."&act=2&notificationReport=".rawurlencode($notificationReport));
 
 }
 
@@ -764,7 +768,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'WhatsApp') {
     $taskID = (int)($_GET['id'] ?? 0);
     $whatsAppResult = sendTaskWhatsApp($conn, $taskID);
     $_SESSION['taskWhatsAppNotice'] = $whatsAppResult[1];
-    header('location: tasks.php?action=view&id=' . $taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4'));
+    $notificationReport = taskNotificationAttemptSummary($conn, $taskID);
+    header('location: tasks.php?action=view&id=' . $taskID . '&act=' . ($whatsAppResult[0] ? '3' : '4') . '&notificationReport=' . rawurlencode($notificationReport));
     exit;
 }
 
@@ -826,7 +831,7 @@ $viewOrderValues = array(
     'payment_terms' => $viewOrder['paymentTerms'] ?? '',
     'shipping_info' => $viewOrder['shippingDocInfo'] ?? ''
 );
-$viewAssignedCustomerIDs = array_values(array_filter(array_map('intval', explode(',', (string)$assignTo))));
+$viewAssignedCustomerIDs = filterAgentRecipientsByChannel($conn, orderAgentRecipientIDs($conn, $orderID, $assignTo), 'whatsapp');
 $viewWhatsAppPayloadCounts = array();
 foreach ($viewAssignedCustomerIDs as $viewCustomerID) {
     $viewCustomerResult = mysqli_query($conn, "SELECT applicantName,companyName,mobileNumber,email2 FROM customers WHERE id=" . $viewCustomerID . " LIMIT 1");
@@ -874,6 +879,9 @@ $notice = isset($_SESSION['taskWhatsAppNotice']) ? $_SESSION['taskWhatsAppNotice
 unset($_SESSION['taskWhatsAppNotice']);
 echo '<div class="alert alert-'.($_GET['act']==='3'?'success':'danger').'"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>'.htmlspecialchars($notice, ENT_QUOTES, 'UTF-8').'</strong></div>';
 }
+if (!empty($_GET['notificationReport'])) {
+echo '<div class="alert alert-warning"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>Notification attempt summary</strong>'.taskNotificationAttemptSummaryHtml($_GET['notificationReport']).'</div>';
+}
 ?>
 <div class="row">
 <div class="col-lg-12">
@@ -919,12 +927,9 @@ echo 'Price request (no linked order)<br /><b>Vendor -</b> '.companyName($assign
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Assign To *</label>
 <div class="col-md-9"><?php
-$assignToAry = @explode(",",$assignTo);
-$asignToStr = array();
-foreach($assignToAry as $assignToVal){
-$asignToStr[] = customerName($assignToVal);
-}
-echo @implode(", ",$asignToStr);
+$assignToAry = array_filter(array_map('intval', explode(",", (string)$assignTo)));
+$assignedNames = array_map('customerName', $assignToAry);
+echo agentEscape(implode(', ', $assignedNames));
 ?>
 </div></div>
 <div class="form-group">
@@ -951,10 +956,10 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 
 				$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.unitPrice,o.quantity,o.totalAmt,o.orderOrigin,o.orderDelievery,o.orderPackaging,o.invoiceNo,o.eta,o.dta,o.newETA,o.documentDate,o.expiryDate,o.paymentTerms,o.latestDateShipment,o.documentOrderNo,o.billNo,o.shippingDocInfo,p.prodName, c.email2 FROM orders as o,products as p, customers as c WHERE p.id=o.productID AND c.id=o.customerID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo) ?: $rowsOrdrInfo;
-		$assignToAry = @explode(",",$rowsEp['assignTo']);
+		$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 
 			foreach($assignToAry as $assignToVal){
-				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
+				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,email2,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
 				$rowsCtBk = mysqli_fetch_assoc($sqlCtBk);
 			}
 	}
@@ -972,7 +977,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 							'product_name'    => $rowsOrdrInfo['prodName'],
 							'document_order_number'    => $rowsOrdrInfo['documentOrderNo'],
 							'proforma_invoice'    => $rowsOrdrInfo['invoiceNo'],
-							'second_email'    => $rowsOrdrInfo['email2'],
+							'second_email'    => ($rowsCtBk['email2'] ?? ''),
 							'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 							'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 							'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -1285,17 +1290,19 @@ if($action == "update" && (int)$orderID === 0){
     }
 } elseif($action == "update"){
 	$assignToAry = @explode(",",$assignTo);
-
-	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$orderID."'");
+	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID,agentID FROM orders where id='".$orderID."'");
 	$rowOrdr = $sqlOrdr ? mysqli_fetch_assoc($sqlOrdr) : false;
 	$orderCustomerIDForContacts = $rowOrdr ? (int)$rowOrdr['customerID'] : 0;
 	$orderVendorIDForContacts = $rowOrdr ? (int)$rowOrdr['vendorID'] : 0;
+	$orderAgentID = $rowOrdr ? (int)$rowOrdr['agentID'] : 0;
 	$taskContactAccountIDs = $orderCustomerIDForContacts . ',' . $orderVendorIDForContacts;
-	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")) ORDER BY type,applicantName ASC");
-	$numRowOC = mysqli_num_rows($sqlOrderCustmr);
+	$agentCondition = $orderAgentID > 0 ? ' OR id=' . $orderAgentID : '';
+	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,applicantName,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")".$agentCondition.") ORDER BY type,applicantName ASC");
+	$numRowOC = $sqlOrderCustmr ? mysqli_num_rows($sqlOrderCustmr) : 0;
 	if($numRowOC>0){
 		while($rowOC = mysqli_fetch_assoc($sqlOrderCustmr)){
-			echo '<option value="'.$rowOC['id'].'" '.((in_array($rowOC['id'],$assignToAry)?'selected="selected"':'')).' >'.$rowOC['companyName'].' ('.typeNm($rowOC['type']).')</option>';
+			$optionLabel = $rowOC['companyName'].' ('.typeNm($rowOC['type']).')'.((int)$rowOC['type'] === 4 ? ' — '.$rowOC['applicantName'] : '');
+			echo '<option value="'.$rowOC['id'].'" '.((in_array($rowOC['id'],$assignToAry)?'selected="selected"':'')).' >'.agentEscape($optionLabel).'</option>';
 		}
 	}
 }else{
@@ -1303,16 +1310,19 @@ if($action == "update" && (int)$orderID === 0){
 
 	if(isset($_GET['orderID']) && $_GET['orderID'] != ''){
 	$orderIDForContacts = (int)$_GET['orderID'];
-	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$orderIDForContacts."'");
+	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID,agentID FROM orders where id='".$orderIDForContacts."'");
 	$rowOrdr = $sqlOrdr ? mysqli_fetch_assoc($sqlOrdr) : false;
 	$orderCustomerIDForContacts = $rowOrdr ? (int)$rowOrdr['customerID'] : 0;
 	$orderVendorIDForContacts = $rowOrdr ? (int)$rowOrdr['vendorID'] : 0;
+	$orderAgentID = $rowOrdr ? (int)$rowOrdr['agentID'] : 0;
 	$taskContactAccountIDs = $orderCustomerIDForContacts . ',' . $orderVendorIDForContacts;
-	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")) ORDER BY type,applicantName ASC");
-	$numRowOC = mysqli_num_rows($sqlOrderCustmr);
+	$agentCondition = $orderAgentID > 0 ? ' OR id=' . $orderAgentID : '';
+	$sqlOrderCustmr = mysqli_query($conn,"SELECT id,applicantName,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$taskContactAccountIDs.") OR assignToID IN (".$taskContactAccountIDs.")".$agentCondition.") ORDER BY type,applicantName ASC");
+	$numRowOC = $sqlOrderCustmr ? mysqli_num_rows($sqlOrderCustmr) : 0;
 	if($numRowOC>0){
 		while($rowOC = mysqli_fetch_assoc($sqlOrderCustmr)){
-			echo '<option value="'.$rowOC['id'].'" '.((in_array($rowOC['id'],$assignToAry)?'selected="selected"':'')).' >'.$rowOC['companyName'].' ('.typeNm($rowOC['type']).')</option>';
+			$optionLabel = $rowOC['companyName'].' ('.typeNm($rowOC['type']).')'.((int)$rowOC['type'] === 4 ? ' — '.$rowOC['applicantName'] : '');
+			echo '<option value="'.$rowOC['id'].'" '.((in_array($rowOC['id'],$assignToAry)?'selected="selected"':'')).' >'.agentEscape($optionLabel).'</option>';
 		}
 	}
 	}
@@ -1602,6 +1612,9 @@ $msgTxt='<b>Task Message</b> No declared task to run';
 }
 echo '<div class="alert alert-info"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>'.$msgTxt.'</strong></div>';
 }
+if (!empty($_GET['notificationReport'])) {
+echo '<div class="alert alert-warning"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>Notification attempt summary</strong>'.taskNotificationAttemptSummaryHtml($_GET['notificationReport']).'</div>';
+}
 $dtAry = explode(" ",currDateTimeGmt());
 ?>
 <section class="panel">
@@ -1686,7 +1699,7 @@ if ($taskStatus === 'overdue') $sqlOrder = "dueDate DESC,id DESC";
 if ($taskStatus === 'first_sent') $sqlOrder = "firstReminderSentAt DESC,id DESC";
 if ($taskStatus === 'second_sent') $sqlOrder = "secondReminderSentAt DESC,id DESC";
 if ($taskStatus === 'all_sent') $sqlOrder = "COALESCE(secondReminderSentAt,firstReminderSentAt,createdDate) DESC,id DESC";
-$sqlSeller = "SELECT id,subject,dueDate,repeatDate,isDraft,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY ".$sqlOrder." limit $eu, $limit";
+$sqlSeller = "SELECT id,orderID,subject,dueDate,repeatDate,isDraft,isExpired,priorityID,assignTo,createdDate,isSecondReminder,firstReminderSentAt,secondReminderSentAt FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY ".$sqlOrder." limit $eu, $limit";
 $sqltot = "SELECT id FROM tasks where createdDate<>'' ".$sqlSort.$sqlSrch." ORDER BY id DESC ";
 
 $resultSeller= mysqli_query($conn,$sqlSeller);
@@ -1716,12 +1729,9 @@ echo '<tr>
 <td>'.viewDateFormat($rows['dueDate']).'</td>
 <td>'.(($rows['repeatDate']!='0000-00-00' && $rows['repeatDate']!='1970-01-01')?viewDateFormat($rows['repeatDate']):'').'</td>
 <td>';
-$assignToAry = @explode(",",$rows['assignTo']);
-$asignToStr = array();
-foreach($assignToAry as $assignToVal){
-$asignToStr[] = customerName($assignToVal);
-}
-echo @implode(", ",$asignToStr);
+$assignToAry = array_filter(array_map('intval', explode(",", (string)$rows['assignTo'])));
+$assignedNames = array_map('customerName', $assignToAry);
+echo agentEscape(implode(', ', $assignedNames));
 echo '</td>
 <td align="center">'.viewDtTm($rows['createdDate']).'</td>
 <td align="center"><div class="table-action-buttons">

@@ -1,7 +1,17 @@
 /* Add here all your CSS customizations */
 .bgRed td{background:#FFACAC;}
 .taskLstTab tr td{padding:15px 4px !important}
-.settlementBg{background:#90EE90}
+.settlement-panel{background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin:18px 0;padding:4px 14px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.settlement-panel .settlement-title{display:flex;align-items:center;justify-content:space-between;color:#34495e;font-size:14px;text-decoration:none}
+.settlement-panel .settlement-title:hover,.settlement-panel .settlement-title:focus{color:#34495e;text-decoration:none}
+.settlement-panel .settlement-toggle-badge{display:inline-block;background:#eef2f7;border:1px solid #d7dee8;border-radius:999px;color:#475569;font-size:10px;font-weight:600;line-height:1;padding:5px 9px;text-transform:uppercase;letter-spacing:.3px}
+.settlement-panel .settlement-table-wrap{margin:0 0 12px}
+.settlement-panel .settlement-table{margin:0;background:#fff}
+.settlement-panel .settlement-table>thead>tr>th{background:#f8fafc;color:#64748b;border-color:#e2e8f0;font-size:10px;font-weight:600;letter-spacing:.4px;padding:9px 12px;text-transform:uppercase}
+.settlement-panel .settlement-table>tbody>tr>td{border-color:#e2e8f0;color:#475569;padding:10px 12px;vertical-align:middle}
+.settlement-panel .settlement-table>tbody>tr>td:first-child{width:24%;color:#34495e}
+.settlement-panel .settlement-notes{white-space:pre-wrap}
+.agent-notification-options label{display:block;margin:0 0 8px;font-weight:500}
 .reptBtn{padding:1px 6px;font-size:11px;border-radius:4px;}
 .hintTxt{font-size:12px;}
 .editBtn,.viewBtn,.delBtn,.notsBtn,.pdfBtn,.downBtn{font-size:13px;padding:5px 10px;border-radius:10px;color:#000;font-weight:600}

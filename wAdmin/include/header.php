@@ -24,7 +24,7 @@ header("location: toDo.php?act=1");
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/jquery-ui/css/ui-lightness/jquery-ui-1.10.4.custom.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-multiselect/bootstrap-multiselect.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme.css" />
-<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css">
+<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css?v=<?=rawurlencode((string)@filemtime(__DIR__ . '/../assets/stylesheets/theme-custom1.1.css'))?>">
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=1" media="screen">
 <script src="<?=$siteUrl;?>assets/vendor/modernizr/modernizr.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/jquery/jquery.js"></script>
@@ -108,6 +108,7 @@ To do List
 <li class="<?=($basePth=="vendors.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>vendors.php"><i class="fa fa-user" aria-hidden="true"></i> <span>Manage Vendors</span> </a> </li>
 <li class="<?=($basePth=="customers.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>customers.php"><i class="fa fa-users" aria-hidden="true"></i> <span>Manage Customers</span> </a> </li>
 <li class="<?=($basePth=="customer_reorders.php")?'nav-active':'';?>"><a href="<?=$siteUrl?>customer_reorders.php"><i class="fa fa-refresh" aria-hidden="true"></i> <span>Customer Reorders</span></a></li>
+<li class="<?=($basePth=="agents.php")?'nav-active':'';?>"><a href="<?=$siteUrl?>agents.php"><i class="fa fa-user" aria-hidden="true"></i> <span>Manage Agents</span></a></li>
 <li class="<?=($basePth=="contactBook.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>contactBook.php"><i class="fa fa-book" aria-hidden="true"></i> <span>Manage Contacts</span> </a> </li>
 <li class="<?=($basePth=="products.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>products.php"><i class="fa fa-list" aria-hidden="true"></i> <span>Manage Products</span> </a> </li>
 <li class="<?=($basePth=="database_backup.php")?'nav-active':'';?>" ><a href="<?=$siteUrl?>database_backup.php"><i class="fa fa-database" aria-hidden="true"></i> <span>MySQL Backup</span> </a> </li>

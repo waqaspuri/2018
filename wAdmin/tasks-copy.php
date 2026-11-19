@@ -23,7 +23,7 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 		//Order Info
 		$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.documentOrderNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
-		$assignToAry = @explode(",",$rowsEp['assignTo']);
+		$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 		
 		if(count($assignToAry)>0){
 		
@@ -104,10 +104,10 @@ while($rowsEp = mysqli_fetch_assoc($sqlEp)){
 		//Order Info
 		$sqlOrdrInfo = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.documentOrderNo,p.prodName FROM orders as o,products as p WHERE p.id=o.productID AND o.id='".$rowsEp['orderID']."' ");
 		$rowsOrdrInfo = mysqli_fetch_assoc($sqlOrdrInfo);
-		$assignToAry = @explode(",",$rowsEp['assignTo']);
+		$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 		if(count($assignToAry)>0){
 			foreach($assignToAry as $assignToVal){ 
-				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
+				$sqlCtBk = mysqli_query($conn,"SELECT applicantName,companyName,mobileNumber,email,email2,isEnableEmail FROM customers WHERE id='".$assignToVal."' ");
 				$rowsCtBk = mysqli_fetch_assoc($sqlCtBk);
 				$sendByAry = @explode(",",$rowsEp['sendBy']);
 					if($rowsCtBk['mobileNumber']){

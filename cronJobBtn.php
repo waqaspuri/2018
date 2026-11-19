@@ -33,11 +33,13 @@ function addTaskAttachmentsToMail($mail, $conn, $taskID) {
 //exprd
 $dtAry = explode(" ", currDateTimeGmt());
 $notificationSent = false;
+$notificationReports = array();
 
 $sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder,repeatDate FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL");
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
+		$notificationReports[] = taskNotificationAttemptSummary($conn, (int)$rowsEp['id']);
 		$enabledChannels = array_map('trim', explode(',', (string)$rowsEp['sendBy']));
 		if (!array_intersect(array('mail', 'sms', 'whatsapp'), $enabledChannels)) {
 			error_log('Task reminder skipped: no delivery channel enabled for task ' . (int)$rowsEp['id']);
@@ -51,7 +53,7 @@ if ($numRowsExp > 0) {
 			if (!$rowsOrdrInfo) {
 				$rowsOrdrInfo = array_fill_keys(array('unitPrice','quantity','totalAmt','orderDelievery','orderPackaging','invoiceNo','eta','dta','newETA','documentDate','expiryDate','paymentTerms','latestDateShipment','documentOrderNo','billNo','prodName','email2'), '');
 			}
-			$assignToAry = @explode(",", $rowsEp['assignTo']);
+			$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 
 			if (count($assignToAry) > 0) {
 
@@ -67,7 +69,7 @@ if ($numRowsExp > 0) {
 
 					if (in_array("mail", $sendByAry)) {
 
-						if ($rowsCtBk['isEnableEmail'] == "0" or $rowsCtBk['isEnableEmail'] == "1") {
+						if (agentRecipientChannelEnabled($conn, $assignToVal, 'email')) {
 
 							$to = $rowsCtBk['email'];
 							$to2 = $rowsCtBk['email2'];
@@ -87,7 +89,7 @@ if ($numRowsExp > 0) {
 								'product_name' => $rowsOrdrInfo['prodName'],
 								'document_order_number' => $rowsOrdrInfo['documentOrderNo'],
 								'proforma_invoice' => $rowsOrdrInfo['invoiceNo'],
-								'second_email' => ($rowsOrdrInfo['email2'] ?? ''),
+								'second_email' => ($rowsCtBk['email2'] ?? ''),
 								'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 								'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 								'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -148,6 +150,7 @@ if ($numRowsExp > 0) {
 							addTaskAttachmentsToMail($mail, $conn, $rowsEp['id']);
 							$mail->Body = appendConfiguredEmailFooter($conn, $mail->Body);
 							$mail->send();
+							insertCommunicationLog('email', trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), $to, "Subject: ".$subject."\n\n".html_entity_decode(strip_tags($message), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'SENT', array('source'=>'cron_button','task_id'=>(int)$rowsEp['id']));
 							$notificationSent = true;
 
 						}
@@ -155,7 +158,7 @@ if ($numRowsExp > 0) {
 
 					if (in_array("sms", $sendByAry)) {
 						//if((substr($rowsCtBk['mobileNumber'],0,2)==92)){
-						if ($rowsCtBk['mobileNumber']) {
+						if ($rowsCtBk['mobileNumber'] && agentRecipientChannelEnabled($conn, $assignToVal, 'sms')) {
 
 							//merge fields
 							$values = array(
@@ -167,7 +170,7 @@ if ($numRowsExp > 0) {
 								'product_name' => $rowsOrdrInfo['prodName'],
 								'document_order_number' => $rowsOrdrInfo['documentOrderNo'],
 								'proforma_invoice' => $rowsOrdrInfo['invoiceNo'],
-								'second_email' => ($rowsOrdrInfo['email2'] ?? ''),
+								'second_email' => ($rowsCtBk['email2'] ?? ''),
 								'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 								'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 								'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -205,7 +208,7 @@ if ($numRowsExp > 0) {
 
 
 							$msg = str_replace($search, $replace, $msg);
-							sendSMS($rowsCtBk['mobileNumber'], $msg);
+							sendSMS($rowsCtBk['mobileNumber'], $msg, trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), array('source'=>'cron_button','task_id'=>(int)$taskID));
 							$notificationSent = true;
 							unset($replace);
 						} else {
@@ -263,6 +266,7 @@ if ($numRowsExp > 0) {
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
+		$notificationReports[] = taskNotificationAttemptSummary($conn, (int)$rowsEp['id']);
 		$enabledChannels = array_map('trim', explode(',', (string)$rowsEp['sendBy']));
 		if (!array_intersect(array('mail', 'sms', 'whatsapp'), $enabledChannels)) {
 			error_log('Task repeat reminder skipped: no delivery channel enabled for task ' . (int)$rowsEp['id']);
@@ -275,7 +279,7 @@ if ($numRowsExp > 0) {
 			if (!$rowsOrdrInfo) {
 				$rowsOrdrInfo = array_fill_keys(array('unitPrice','quantity','totalAmt','orderDelievery','orderPackaging','invoiceNo','eta','dta','newETA','documentDate','expiryDate','paymentTerms','latestDateShipment','documentOrderNo','billNo','prodName','email2'), '');
 			}
-			$assignToAry = @explode(",", $rowsEp['assignTo']);
+			$assignToAry = orderAgentRecipientIDs($conn, $rowsEp['orderID'], $rowsEp['assignTo']);
 
 			$values = array(
 				'unit_price' => $rowsOrdrInfo['unitPrice'],
@@ -312,7 +316,7 @@ if ($numRowsExp > 0) {
 					$sendByAry = @explode(",", $rowsEp['sendBy']);
 						if ($sendRepeatDateEmail && in_array("mail", $sendByAry)) {
 
-						if ($rowsCtBk['isEnableEmail'] == "0" or $rowsCtBk['isEnableEmail'] == "1") {
+						if (agentRecipientChannelEnabled($conn, $assignToVal, 'email')) {
 
 							$to = $rowsCtBk['email'];
 							$to2 = $rowsCtBk['email2'];
@@ -334,7 +338,7 @@ if ($numRowsExp > 0) {
 								'product_name' => $rowsOrdrInfo['prodName'],
 								'document_order_number' => $rowsOrdrInfo['documentOrderNo'],
 								'proforma_invoice' => $rowsOrdrInfo['invoiceNo'],
-								'second_email' => ($rowsOrdrInfo['email2'] ?? ''),
+								'second_email' => ($rowsCtBk['email2'] ?? ''),
 								'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 								'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 								'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -394,6 +398,7 @@ if ($numRowsExp > 0) {
 							addTaskAttachmentsToMail($mail, $conn, $rowsEp['id']);
 							$mail->Body = appendConfiguredEmailFooter($conn, $mail->Body);
 							$mail->send();
+							insertCommunicationLog('email', trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), $to, "Subject: ".$subject."\n\n".html_entity_decode(strip_tags($message), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'SENT', array('source'=>'cron_button','task_id'=>(int)$rowsEp['id']));
 
 							unset($replace);
 
@@ -402,7 +407,7 @@ if ($numRowsExp > 0) {
 
 					if (in_array("sms", $sendByAry)) {
 						//if((substr($rowsCtBk['mobileNumber'],0,2)==92)){
-						if ($rowsCtBk['mobileNumber']) {
+						if ($rowsCtBk['mobileNumber'] && agentRecipientChannelEnabled($conn, $assignToVal, 'sms')) {
 
 							//merge fields
 
@@ -418,7 +423,7 @@ if ($numRowsExp > 0) {
 								'product_name' => $rowsOrdrInfo['prodName'],
 								'document_order_number' => $rowsOrdrInfo['documentOrderNo'],
 								'proforma_invoice' => $rowsOrdrInfo['invoiceNo'],
-								'second_email' => ($rowsOrdrInfo['email2'] ?? ''),
+								'second_email' => ($rowsCtBk['email2'] ?? ''),
 								'arrival_date' => viewDateFormat($rowsOrdrInfo['eta']),
 								'departure_date' => viewDateFormat($rowsOrdrInfo['dta']),
 								'latest_date_shipment' => viewDateFormat($rowsOrdrInfo['latestDateShipment']),
@@ -457,7 +462,7 @@ if ($numRowsExp > 0) {
 
 
 							$msg = str_replace($search, $replace, $msg);
-							sendSMS($rowsCtBk['mobileNumber'], $msg);
+							sendSMS($rowsCtBk['mobileNumber'], $msg, trim($rowsCtBk['companyName'].' '.$rowsCtBk['applicantName']), array('source'=>'cron_button','task_id'=>(int)$taskID));
 							$notificationSent = true;
 							unset($replace);
 						} else {
@@ -519,7 +524,8 @@ if ($numRowsExp > 0) {
 }
 
 
-header('Location: wAdmin/tasks.php?act=' . $act);
+$notificationReport = substr(implode("\n", array_slice($notificationReports, 0, 20)), 0, 3000);
+header('Location: wAdmin/tasks.php?act=' . $act . ($notificationReport !== '' ? '&notificationReport=' . rawurlencode($notificationReport) : ''));
 
 
 

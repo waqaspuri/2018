@@ -11,6 +11,9 @@ $emailLogs = $emailResult ? mysqli_fetch_all($emailResult, MYSQLI_ASSOC) : array
 $smsLogs = $smsResult ? mysqli_fetch_all($smsResult, MYSQLI_ASSOC) : array();
 $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC) : array();
 ?>
+<style>
+.communication-log-code{margin:0;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#f7f7f7;border:1px solid #ddd;border-radius:4px;padding:8px;color:#333;font-size:12px}
+</style>
 
 
 <section role="main" class="content-body">
@@ -55,9 +58,9 @@ $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC
           <tr>
             <td><?=htmlspecialchars((string)$row['time_stamp'], ENT_QUOTES, 'UTF-8');?></td>
             <td>Email</td>
-            <td><?=htmlspecialchars($recipientLabel, ENT_QUOTES, 'UTF-8');?></td>
-            <td><?=htmlspecialchars((string)$row['api_data'], ENT_QUOTES, 'UTF-8');?></td>
-            <td><span style="color:<?=$successfulLog ? 'green' : '#b94a48';?>"><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></span></td>
+            <td><pre class="communication-log-code"><code><?=htmlspecialchars($recipientLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
+            <td><pre class="communication-log-code"><code><?=htmlspecialchars((string)$row['api_data'], ENT_QUOTES, 'UTF-8');?></code></pre></td>
+            <td><pre class="communication-log-code"><code><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
           </tr>
         <?php } ?>
         <?php if (!$emailLogs): ?><tr><td colspan="5" class="text-center text-muted">No email logs found.</td></tr><?php endif; ?>
@@ -76,9 +79,9 @@ $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC
               ?>
                 <tr>
                   <td><?=htmlspecialchars((string)$row['time_stamp'], ENT_QUOTES, 'UTF-8');?></td>
-                  <td><?=htmlspecialchars((string)$row['client'], ENT_QUOTES, 'UTF-8');?></td>
-                  <td><?=htmlspecialchars((string)$row['api_data'], ENT_QUOTES, 'UTF-8');?></td>
-                  <td><span style="color:<?=$successfulLog ? 'green' : '#b94a48';?>"><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></span></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars((string)$row['client'], ENT_QUOTES, 'UTF-8');?></code></pre></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars((string)$row['api_data'], ENT_QUOTES, 'UTF-8');?></code></pre></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
                 </tr>
               <?php } ?>
               <?php if (!$smsLogs): ?><tr><td colspan="4" class="text-center text-muted">No SMS logs found.</td></tr><?php endif; ?>
@@ -100,9 +103,9 @@ $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC
               ?>
                 <tr>
                   <td><?=htmlspecialchars((string)$row['time_stamp'], ENT_QUOTES, 'UTF-8');?></td>
-                  <td><?=htmlspecialchars($recipientLabel, ENT_QUOTES, 'UTF-8');?></td>
-                  <td><?=htmlspecialchars($requestLabel, ENT_QUOTES, 'UTF-8');?></td>
-                  <td><span style="color:<?=$successfulLog ? 'green' : (strpos($statusLabel, 'PREVIEW:') === 0 ? '#777' : '#b94a48');?>"><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></span></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars($recipientLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars($requestLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
+                  <td><pre class="communication-log-code"><code><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8');?></code></pre></td>
                 </tr>
               <?php } ?>
               <?php if (!$whatsAppLogs): ?><tr><td colspan="4" class="text-center text-muted">No WhatsApp logs found.</td></tr><?php endif; ?>

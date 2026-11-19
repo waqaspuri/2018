@@ -2,6 +2,11 @@
 require_once "include/sessionAdmin.php";
 require_once "include/configure.php";
 require_once "../php/lead_pipeline.php";
+ensureOrderAgentSchema($conn);
+$settlementDetailsColumn = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'settlementDetails'");
+if ($settlementDetailsColumn && mysqli_num_rows($settlementDetailsColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE orders ADD COLUMN settlementDetails TEXT NULL AFTER settlementIDs");
+}
 $sqlStatusTextColorColumn = mysqli_query($conn, "SHOW COLUMNS FROM status LIKE 'textColor'");
 if ($sqlStatusTextColorColumn && mysqli_num_rows($sqlStatusTextColorColumn) === 0) {
     mysqli_query($conn, "ALTER TABLE status ADD COLUMN textColor VARCHAR(20) NULL DEFAULT NULL AFTER bgColor");
@@ -114,7 +119,63 @@ if(isset($_GET['action']) && $_GET['action'] == "download"){
         downloadFile('../img/'.$rowImgs['orderImg'],$rowImgs['orderImg']);
     }
 }
+if (empty($_SESSION['order_delete_csrf'])) $_SESSION['order_delete_csrf'] = bin2hex(random_bytes(32));
+if (isset($_POST['deleteOrder'])) {
+    require_once '../php/admin_auth.php';
+    $deleteOrderID = (int)($_POST['orderID'] ?? 0);
+    $deleteToken = (string)($_POST['order_delete_csrf'] ?? '');
+    $deletePassword = (string)($_POST['adminPassword'] ?? '');
+    $deleteError = '';
+    if (!hash_equals((string)$_SESSION['order_delete_csrf'], $deleteToken)) {
+        $deleteError = 'Your delete request expired. Please try again.';
+    }
+    $deleteOrderResult = $deleteOrderID > 0 ? mysqli_query($conn, "SELECT id FROM orders WHERE id=" . $deleteOrderID . " LIMIT 1") : false;
+    if ($deleteError === '' && (!$deleteOrderResult || !mysqli_fetch_assoc($deleteOrderResult))) {
+        $deleteError = 'The order was not found.';
+    }
+    $taskCountResult = $deleteOrderID > 0 ? mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE orderID=" . $deleteOrderID) : false;
+    $taskCountRow = $taskCountResult ? mysqli_fetch_assoc($taskCountResult) : array('total' => 0);
+    if ($deleteError === '' && (int)$taskCountRow['total'] > 1) {
+        $deleteError = 'This order cannot be deleted because it has more than one assigned task.';
+    }
+    $adminResult = mysqli_query($conn, "SELECT id,username,pass,passHash,adminEmail FROM admin WHERE id=" . (int)($_SESSION['adminID'] ?? 0) . " LIMIT 1");
+    $adminRow = $adminResult ? mysqli_fetch_assoc($adminResult) : false;
+    if ($deleteError === '' && (!$adminRow || !adminVerifyAndMigratePassword($conn, $adminRow, $deletePassword))) {
+        $deleteError = 'The admin password is incorrect.';
+    }
+    if ($deleteError !== '') {
+        header('Location: orders.php?action=view&id=' . $deleteOrderID . '&deleteError=' . rawurlencode($deleteError));
+        exit;
+    }
+    $deleteFiles = array();
+    $imageResult = mysqli_query($conn, "SELECT orderImg FROM order_images WHERE orderID=" . $deleteOrderID);
+    while ($imageResult && ($imageRow = mysqli_fetch_assoc($imageResult))) if (!empty($imageRow['orderImg'])) $deleteFiles[] = $imageRow['orderImg'];
+    $orderFilesResult = mysqli_query($conn, "SELECT orderImg,shippingDocImg FROM orders WHERE id=" . $deleteOrderID . " LIMIT 1");
+    $orderFiles = $orderFilesResult ? mysqli_fetch_assoc($orderFilesResult) : false;
+    if ($orderFiles) foreach (array('orderImg', 'shippingDocImg') as $fileField) if (!empty($orderFiles[$fileField])) $deleteFiles[] = $orderFiles[$fileField];
+    mysqli_begin_transaction($conn);
+    $deleted = mysqli_query($conn, "DELETE FROM order_images WHERE orderID=" . $deleteOrderID)
+        && mysqli_query($conn, "DELETE FROM tasks WHERE orderID=" . $deleteOrderID)
+        && mysqli_query($conn, "DELETE FROM order_notes WHERE orderID=" . $deleteOrderID)
+        && mysqli_query($conn, "DELETE FROM orders WHERE id=" . $deleteOrderID);
+    if ($deleted) {
+        mysqli_commit($conn);
+        foreach (array_unique($deleteFiles) as $deleteFile) @unlink('../img/' . basename($deleteFile));
+        $_SESSION['order_delete_csrf'] = bin2hex(random_bytes(32));
+        header('Location: orders.php?act=3');
+    } else {
+        mysqli_rollback($conn);
+        header('Location: orders.php?action=view&id=' . $deleteOrderID . '&deleteError=' . rawurlencode('The order could not be deleted.'));
+    }
+    exit;
+}
 if(isset($_POST['submit']) && $_POST['submit'] == "Submit"){
+    try { $submittedAgent = validateOrderAgentInput($conn, $_POST); }
+    catch (InvalidArgumentException $error) {
+        http_response_code(422);
+        exit('<p>' . agentEscape($error->getMessage()) . '</p><p><a href="javascript:history.back()">Back to order</a></p>');
+    }
+
     if(isset($_POST['action']) && $_POST['action'] == "add"){
         $orderImgNm = "";
         $shippingDocImgNm = "";
@@ -140,10 +201,11 @@ if(isset($_POST['submit']) && $_POST['submit'] == "Submit"){
         $submittedStatusID = !empty($_POST['statusID']) ? (int)$_POST['statusID'] : 1;
         $submittedUnitPrice = (isset($_POST['unitPrice']) && trim((string)$_POST['unitPrice']) !== '' && is_numeric($_POST['unitPrice'])) ? (float)$_POST['unitPrice'] : 0;
         $submittedTotalAmt = (isset($_POST['totalAmt']) && trim((string)$_POST['totalAmt']) !== '' && is_numeric($_POST['totalAmt'])) ? (float)$_POST['totalAmt'] : 0;
-        mysqli_query($conn, "INSERT INTO orders (orderImgNm,shippingDocImgNm,documentDate,documentReceivedDate,lead_time,expiryDate,latestDateShipment,billNo,documentOrderNo,invoiceNo,shippingDocInfo,statusID,orderUOM,vendorID,customerID,productID,unitPrice,quantity,totalAmt,orderOrigin,orderDelievery,orderPackaging,orderTransport,dta,eta,newETA,paymentTerms,orderImg,shippingDocImg,bankInfo,termCondition,settlementSupplier,settlementApplicant,settlementIDs,createdDate) VALUES
+        mysqli_query($conn, "INSERT INTO orders (orderImgNm,shippingDocImgNm,documentDate,documentReceivedDate,lead_time,expiryDate,latestDateShipment,billNo,documentOrderNo,invoiceNo,shippingDocInfo,statusID,orderUOM,vendorID,customerID,productID,unitPrice,quantity,totalAmt,orderOrigin,orderDelievery,orderPackaging,orderTransport,dta,eta,newETA,paymentTerms,orderImg,shippingDocImg,bankInfo,termCondition,settlementSupplier,settlementApplicant,settlementIDs,settlementDetails,createdDate) VALUES
 ('" . mysqli_real_escape_string($conn, $orderImgNm) . "','" . mysqli_real_escape_string($conn, $shippingDocImgNm) . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['documentDate'])) . "'," . $documentReceivedDateSql . ",'" . mysqli_real_escape_string($conn, (int)($_POST['lead_time'] ?? 0)) . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['expiryDate'] ?? '')) . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['latestDateShipment'] ?? '')) . "','" . mysqli_real_escape_string($conn, $_POST['billNo'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['documentOrderNo'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['invoiceNo'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['shippingDocInfo'] ?? '') . "','" . $submittedStatusID . "','" . mysqli_real_escape_string($conn, $_POST['orderUOM'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['vendorID']) . "','" . mysqli_real_escape_string($conn, $_POST['customerID']) . "','" . mysqli_real_escape_string($conn, $_POST['productID']) . "','" . $submittedUnitPrice . "','" . mysqli_real_escape_string($conn, $_POST['quantity'] ?? '') . "','" . $submittedTotalAmt . "','" . mysqli_real_escape_string($conn, $_POST['orderOrigin'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['orderDelievery'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['orderPackaging'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['orderTransport'] ?? '') . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['dta'] ?? '')) . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['eta'] ?? '')) . "','" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['newETA'] ?? '')) . "','" . mysqli_real_escape_string($conn, $_POST['paymentTerms'] ?? '') . "','" . $uploadfile . "','" . $uploadfile2 . "','" . mysqli_real_escape_string($conn, $_POST['bankInfo'] ?? '') . "','" . mysqli_real_escape_string($conn, $_POST['termCondition'] ?? '') . "',
-'" . mysqli_real_escape_string($conn, $_POST['settlementSupplier']) . "','" . mysqli_real_escape_string($conn, $_POST['settlementApplicant']) . "','" . mysqli_real_escape_string($conn, @implode(",", (is_array($_POST['settlementIDs'] ?? null) ? $_POST['settlementIDs'] : array()))) . "','" . currDateTimeGmt() . "')");
+'" . mysqli_real_escape_string($conn, $_POST['settlementSupplier']) . "','" . mysqli_real_escape_string($conn, $_POST['settlementApplicant']) . "','" . mysqli_real_escape_string($conn, @implode(",", (is_array($_POST['settlementIDs'] ?? null) ? $_POST['settlementIDs'] : array()))) . "','" . mysqli_real_escape_string($conn, $_POST['settlementDetails'] ?? '') . "','" . currDateTimeGmt() . "')");
 $orderID = mysqli_insert_id($conn);
+saveOrderAgent($conn, (int)$orderID, $submittedAgent);
 mysqli_query($conn, "UPDATE orders SET orderUUID=UUID() WHERE id='" . $orderID . "'");
 
 $imagesName = isset($_FILES["orderImgs"]["name"]) ? $_FILES["orderImgs"]["name"] : null;
@@ -212,7 +274,9 @@ header("location: orders.php?act=1");
         $submittedUnitPrice = (isset($_POST['unitPrice']) && trim((string)$_POST['unitPrice']) !== '' && is_numeric($_POST['unitPrice'])) ? (float)$_POST['unitPrice'] : 0;
         $submittedTotalAmt = (isset($_POST['totalAmt']) && trim((string)$_POST['totalAmt']) !== '' && is_numeric($_POST['totalAmt'])) ? (float)$_POST['totalAmt'] : 0;
         mysqli_query($conn, "UPDATE orders SET ".$sqlCondition2.$sqlCondition."documentDate='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['documentDate'])) . "',documentReceivedDate=" . $documentReceivedDateSql . ",lead_time='" . mysqli_real_escape_string($conn, (int)($_POST['lead_time'] ?? 0)) . "',expiryDate='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['expiryDate'] ?? '')) . "',latestDateShipment='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['latestDateShipment'] ?? '')) . "',billNo='" . mysqli_real_escape_string($conn, $_POST['billNo'] ?? '') . "',documentOrderNo='" . mysqli_real_escape_string($conn, $_POST['documentOrderNo'] ?? '') . "',invoiceNo='" . mysqli_real_escape_string($conn, $_POST['invoiceNo'] ?? '') . "',shippingDocInfo='" . mysqli_real_escape_string($conn, $_POST['shippingDocInfo'] ?? '') . "',statusID='" . $submittedStatusID . "',orderUOM='" . mysqli_real_escape_string($conn, $_POST['orderUOM'] ?? '') . "',vendorID='" . (int)$existingAssociations['vendorID'] . "',customerID='" . (int)$existingAssociations['customerID'] . "',productID='" . (int)$existingAssociations['productID'] . "',unitPrice='" . $submittedUnitPrice . "',quantity='" . mysqli_real_escape_string($conn, $_POST['quantity'] ?? '') . "',totalAmt='" . $submittedTotalAmt . "',orderOrigin='" . mysqli_real_escape_string($conn, $_POST['orderOrigin'] ?? '') . "',orderDelievery='" . mysqli_real_escape_string($conn, $_POST['orderDelievery'] ?? '') . "',orderPackaging='" . mysqli_real_escape_string($conn, $_POST['orderPackaging'] ?? '') . "',orderTransport='" . mysqli_real_escape_string($conn, $_POST['orderTransport'] ?? '') . "',dta='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['dta'] ?? '')) . "',eta='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['eta'] ?? '')) . "',newETA='" . mysqli_real_escape_string($conn, sqlDtFormat($_POST['newETA'] ?? '')) . "',paymentTerms='" . mysqli_real_escape_string($conn, $_POST['paymentTerms'] ?? '') . "',
-bankInfo='" . mysqli_real_escape_string($conn, $_POST['bankInfo']) . "',termCondition='" . mysqli_real_escape_string($conn, $_POST['termCondition']) . "',settlementSupplier='" . mysqli_real_escape_string($conn, $_POST['settlementSupplier']) . "',settlementApplicant='" . mysqli_real_escape_string($conn, $_POST['settlementApplicant']) . "',settlementIDs='" . mysqli_real_escape_string($conn, @implode(",", (is_array($_POST['settlementIDs'] ?? null) ? $_POST['settlementIDs'] : array()))) . "' WHERE id='" . $_POST['id'] . "'");
+bankInfo='" . mysqli_real_escape_string($conn, $_POST['bankInfo']) . "',termCondition='" . mysqli_real_escape_string($conn, $_POST['termCondition']) . "',settlementSupplier='" . mysqli_real_escape_string($conn, $_POST['settlementSupplier']) . "',settlementApplicant='" . mysqli_real_escape_string($conn, $_POST['settlementApplicant']) . "',settlementIDs='" . mysqli_real_escape_string($conn, @implode(",", (is_array($_POST['settlementIDs'] ?? null) ? $_POST['settlementIDs'] : array()))) . "',settlementDetails='" . mysqli_real_escape_string($conn, $_POST['settlementDetails'] ?? '') . "' WHERE id='" . $_POST['id'] . "'");
+
+        saveOrderAgent($conn, $existingOrderID, $submittedAgent);
 
         if ((int)$existingAssociations['statusID'] !== $submittedStatusID) {
             $newStatusResult = mysqli_query($conn, "SELECT status FROM status WHERE id='" . $submittedStatusID . "' LIMIT 1");
@@ -274,21 +338,8 @@ if(is_array($imagesName2)){
 }
 
 if(isset($_GET['act']) && $_GET['act'] == "delete"){
-    $sqlImgs = mysqli_query($conn,"SELECT * FROM order_images WHERE orderID='" . $_GET['id'] . "'");
-    while($rowImgs = mysqli_fetch_assoc($sqlImgs)){
-        @unlink("../img/" . $rowImgs['orderImg']);
-        mysqli_query($conn,"DELETE FROM order_images WHERE id='" . $rowImgs['id'] . "'");
-    }
-    $sqlImg = mysqli_query($conn,"select orderImg,shippingDocImg FROM orders where id='" . $_GET['id'] . "'");
-    $rowImg = mysqli_fetch_assoc($sqlImg);
-    @unlink("../img/" . $rowImg['orderImg']);
-    @unlink("../img/" . $rowImg['shippingDocImg']);
-
-    mysqli_query($conn,"DELETE FROM tasks WHERE orderID='" . $_GET['id'] . "' ");
-    mysqli_query($conn,"DELETE FROM order_notes WHERE orderID='" . $_GET['id'] . "' ");
-
-    mysqli_query($conn,"DELETE FROM orders WHERE id='" . $_GET['id'] . "'");
-    header("location: orders.php?act=3");
+    header('Location: orders.php?action=view&id=' . (int)($_GET['id'] ?? 0) . '&deleteError=' . rawurlencode('Use the Delete button and enter the admin password to approve deletion.'));
+    exit;
 }
 
 if(isset($_GET['act']) && $_GET['act'] == "imgDelete"){
@@ -321,6 +372,9 @@ if(isset($_GET['act']) && $_GET['act'] == "delDate"){
     }
     header("Location: orders.php?action=edit&id=" . $_GET['id'] . "&act=1");
 }
+$agentID = 0;
+$agentCommission = "0.00";
+$agentCommissionCurrency = "PKR";
 $action = "add";
 $hdTxt="Add New";
 if(isset($_GET['action']) && $_GET['action'] == "edit"){
@@ -364,6 +418,7 @@ if(isset($_GET['action']) && $_GET['action'] == "edit"){
     $settlementSupplier = '';
     $settlementApplicant = '';
     $settlementIDs = '';
+    $settlementDetails = '';
     $id = '';
 }
 include "include/header.php";
@@ -479,12 +534,15 @@ if(isset($_GET['action']) && $_GET['action'] == "view"){
 <header class="panel-heading">
 <div class="panel-actions">
 <a href="<?=$siteUrl;?>orders.php?action=edit&id=<?=$id?>"><b>Edit</b></a> |
-<a style="margin:0 6px;color:#a94442" title="Delete this order" aria-label="Delete this order" onclick="if (!confirm('WARNING: This permanently deletes the order and its related notes, tasks, and files. This cannot be undone.')) return false; if (prompt('Type DELETE to confirm order deletion:') !== 'DELETE') { alert('Order deletion cancelled.'); return false; } return true;" href="<?=$siteUrl;?>orders.php?act=delete&amp;id=<?=(int)$id?>">Delete</a> |
+<?php $orderTaskCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE orderID=" . (int)$id); $orderTaskCountRow = $orderTaskCountResult ? mysqli_fetch_assoc($orderTaskCountResult) : array('total'=>0); $orderTaskCount = (int)$orderTaskCountRow['total']; ?>
+<?php if ($orderTaskCount > 1): ?><span style="margin:0 6px;color:#999" title="Orders with more than one task cannot be deleted">Delete unavailable</span><?php else: ?><a style="margin:0 6px;color:#a94442" title="Delete this order" aria-label="Delete this order" href="#deleteOrderModal" data-toggle="modal">Delete</a><?php endif; ?> |
 <a href="<?=$siteUrl;?>orders.php"><b>Back</b></a>
 </div>
 <h2 class="panel-title">View Orders - <?=statusNm($statusID)?></h2>
 </header>
 <div class="panel-body viewFrm">
+<?php if (!empty($_GET['deleteError'])): ?><div class="alert alert-danger"><?=htmlspecialchars((string)$_GET['deleteError'], ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+<?php if ($orderTaskCount > 1): ?><div class="alert alert-warning">This order has <?=$orderTaskCount?> assigned tasks and cannot be deleted. Reduce it to one task or fewer before trying again.</div><?php endif; ?>
 <form class="form-horizontal form-bordered" method="post" enctype="multipart/form-data">
 <?php if ($dhlAlertVisible): ?>
 <div class="alert alert-warning" style="margin-bottom:20px;">
@@ -522,9 +580,12 @@ if($statusID=='8'){
 </div>
 <div class="col-md-6">
 <label class="col-md-2 control-label" for="inputDefault">Customer</label>
-<div class="col-md-9"><a href="customers.php?action=view&id=<?=$customerID?>"><?=companyName($customerID);?></br><a href="https://web.whatsapp.com/send?phone=<?=whatsApp($customerID);?>&text&app_absent=0" target="_blank">WhatsApp</a></a></div>
+<div class="col-md-9"><a href="customers.php?action=view&amp;id=<?=(int)$customerID?>"><?=agentEscape(companyName($customerID))?></a><br><a href="https://web.whatsapp.com/send?phone=<?=rawurlencode(whatsApp($agentID ?: $customerID))?>" target="_blank" rel="noopener">WhatsApp<?= $agentID ? ' Agent' : '' ?></a></div>
 </div>
 </div>
+<?php if ($agentID): ?>
+<div class="form-group"><label class="col-md-2 control-label">Agent</label><div class="col-md-9"><a href="agents.php?id=<?=(int)$agentID?>"><?=agentEscape(customerName($agentID))?></a><br>Commission: <?=agentEscape($agentCommissionCurrency)?> <?=number_format((float)$agentCommission,2)?><br><small>The agent receives a copy of customer email, WhatsApp and SMS notifications.</small></div></div>
+<?php endif; ?>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Order UUID</label>
 <div class="col-md-9"><?=htmlspecialchars(isset($orderUUID) && $orderUUID !== '' ? $orderUUID : '—', ENT_QUOTES, 'UTF-8');?></div>
@@ -856,52 +917,47 @@ echo '<tr>
 <label class="col-md-2 control-label" for="inputDefault">Term &amp; Conditions </label>
 <div class="col-md-9"><?=$termCondition?></div>
 </div>
-<div class="settlementBg">
+<div class="settlement-panel">
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">&nbsp;</label>
-<div class="col-md-9"><b><a id="settlementLnk" href="javascript:void(0)">Settlement</a></b></div>
+<div class="col-md-9"><a class="settlement-title" id="settlementLnk" href="javascript:void(0)" aria-expanded="false"><strong>Settlement details</strong><span class="settlement-toggle-badge">Show / Hide</span></a></div>
 </div>
 <script type="text/javascript">
 $( document ).ready(function() {
 $("#settlementLnk").click(function(){
 $(".settlementInfo").toggle();
+$(this).attr("aria-expanded", $(".settlementInfo").is(":visible") ? "true" : "false");
 });
 });
 </script>
 <div class="settlementInfo" style="display:none">
-<div class="form-group">
-<div class="col-md-6">
-<label class="col-md-4 control-label" for="inputDefault">Supplier</label>
-<div class="col-md-8">$<?=$settlementSupplier?> per metric tons
-</div>
-</div>
-<div class="col-md-6">
-<label class="col-md-2 control-label" for="inputDefault">Applicant</label>
-<div class="col-md-8">$<?=$settlementApplicant?> per metric tons
-</div>
-</div>
-<div class="col-md-6">
-<label class="col-md-4 control-label" for="inputDefault">Total:</label>
-<div class="col-md-8">$<?php echo get_total($settlementSupplier, $quantity); ?> per consignment
-</div>
-</div>
-<div class="col-md-6">
-<label class="col-md-2 control-label" for="inputDefault">Total:</label>
-<div class="col-md-8">$<?php echo get_total($settlementApplicant, $quantity); ?> per consignment
+<?php
+$settlementAry = array_map('intval', explode(",", (string)$settlementIDs));
+$settlementLabels = array();
+if (in_array(1, $settlementAry, true)) $settlementLabels[] = 'Remittance from supplier';
+if (in_array(2, $settlementAry, true)) $settlementLabels[] = 'On arrival from applicant';
+if (in_array(3, $settlementAry, true)) $settlementLabels[] = 'Licensed';
+?>
+<div class="table-responsive settlement-table-wrap">
+<table class="table table-bordered settlement-table">
+<thead><tr><th>Party</th><th>Rate per metric ton</th><th>Total per consignment</th></tr></thead>
+<tbody>
+<tr><td><strong>Supplier</strong></td><td>$<?=htmlspecialchars((string)$settlementSupplier, ENT_QUOTES, 'UTF-8')?></td><td>$<?=htmlspecialchars((string)get_total($settlementSupplier, $quantity), ENT_QUOTES, 'UTF-8')?></td></tr>
+<tr><td><strong>Applicant</strong></td><td>$<?=htmlspecialchars((string)$settlementApplicant, ENT_QUOTES, 'UTF-8')?></td><td>$<?=htmlspecialchars((string)get_total($settlementApplicant, $quantity), ENT_QUOTES, 'UTF-8')?></td></tr>
+<tr><td><strong>Settlement types</strong></td><td colspan="2"><?=htmlspecialchars($settlementLabels ? implode(' · ', $settlementLabels) : '—', ENT_QUOTES, 'UTF-8')?></td></tr>
+<?php if (trim((string)$settlementDetails) !== ''): ?><tr><td><strong>Notes</strong></td><td colspan="2" class="settlement-notes"><?=nl2br(htmlspecialchars((string)$settlementDetails, ENT_QUOTES, 'UTF-8'))?></td></tr><?php endif; ?>
+</tbody>
+</table>
 </div>
 </div>
 </div>
-<div class="form-group">
-<label class="col-md-2 control-label" for="inputDefault">Settlements</label>
-<div class="col-md-9">
-<?php $settlementAry = explode(",",$settlementIDs); ?>
-<input type="checkbox" name="settlementIDs[]" value="1" <?=(in_array(1,$settlementAry)?'checked="checked"':'');?> > Remittance from supplier &nbsp; 
-<input type="checkbox" name="settlementIDs[]" value="2" <?=(in_array(2,$settlementAry)?'checked="checked"':'');?> > On Arrival from Applicant &nbsp; 
-<input type="checkbox" name="settlementIDs[]" value="3" <?=(in_array(3,$settlementAry)?'checked="checked"':'');?> > Licensed</div>
-</div>
-<hr />
-</div>
-</div>
+<?php if ($orderTaskCount <= 1): ?>
+<div class="modal fade" id="deleteOrderModal" tabindex="-1" role="dialog" aria-labelledby="deleteOrderModalLabel"><div class="modal-dialog" role="document"><div class="modal-content">
+<div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button><h4 class="modal-title" id="deleteOrderModalLabel">Approve order deletion</h4></div>
+<div class="modal-body"><div class="alert alert-danger">This permanently deletes the order and its related notes, <?=$orderTaskCount?> task<?=($orderTaskCount===1?'':'s')?>, and files.</div><div class="form-group"><label for="adminPassword">Admin password</label><input type="password" class="form-control" id="adminPassword" name="adminPassword" autocomplete="current-password" required></div></div>
+<div class="modal-footer"><input type="hidden" name="orderID" value="<?=(int)$id?>"><input type="hidden" name="order_delete_csrf" value="<?=htmlspecialchars((string)$_SESSION['order_delete_csrf'], ENT_QUOTES, 'UTF-8')?>"><button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button><button type="submit" name="deleteOrder" value="1" class="btn btn-danger">Approve and delete</button></div>
+</div></div></div>
+<?php endif; ?>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Created Date</label>
 <div class="col-md-9"><?=viewDtTm($createdDate)?></div>
@@ -1122,6 +1178,27 @@ while($rowsCust = mysqli_fetch_assoc($sqlCust)){
 <button type="button" class="btn btn-success" style="margin-top:8px;padding:8px 16px" onclick="openQuickParty('customer')">Add Customer</button>
 <?php endif; ?>
 </div></div>
+<input type="hidden" name="agent_csrf" value="<?=agentEscape(agentCsrfToken())?>">
+<div class="form-group">
+<label class="col-md-2 control-label" for="setAgent">Set Agent</label>
+<div class="col-md-9"><label><input type="checkbox" id="setAgent" name="setAgent" value="1" <?=!empty($agentID)?'checked':''?>> Also send customer order notifications to an agent</label>
+<div id="orderAgentFields">
+<label for="orderAgentID">Agent</label>
+<select class="form-control" name="agentID" id="orderAgentID"><option value="">Select Agent</option>
+<?php $agentOptions=mysqli_query($conn,"SELECT id,applicantName,companyName FROM customers WHERE type=4 ORDER BY applicantName");
+while($agentOption=mysqli_fetch_assoc($agentOptions)): ?>
+<option value="<?=(int)$agentOption['id']?>" <?=(int)$agentID===(int)$agentOption['id']?'selected':''?>><?=agentEscape($agentOption['applicantName'].' — '.$agentOption['companyName'])?></option>
+<?php endwhile; ?></select>
+<p class="help-block">The customer and selected contacts continue receiving messages normally. The agent receives an additional copy. Vendor recipients stay unchanged.</p>
+<label for="agentCommission">Commission for this order</label>
+<input type="number" class="form-control" id="agentCommission" name="agentCommission" min="0" max="999999999999.99" step="0.01" value="<?=agentEscape($agentCommission)?>">
+<label for="agentCommissionCurrency">Currency</label><select class="form-control" id="agentCommissionCurrency" name="agentCommissionCurrency">
+<?php foreach(array('PKR','USD','EUR','GBP','AED') as $currency): ?><option <?=$agentCommissionCurrency===$currency?'selected':''?>><?=$currency?></option><?php endforeach; ?></select>
+<p class="help-block"><a href="agents.php?add=1" target="_blank" rel="noopener">Add Agent</a>. Disabling Set Agent removes the assignment and commission from this order.</p>
+</div></div></div>
+<script>
+(function(){var enabled=document.getElementById('setAgent'),fields=document.getElementById('orderAgentFields');function toggle(){fields.hidden=!enabled.checked;fields.querySelectorAll('input,select').forEach(function(field){field.disabled=!enabled.checked;});document.getElementById('orderAgentID').required=enabled.checked;}enabled.addEventListener('change',toggle);toggle();})();
+</script>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Proforma Invoice</label>
 <div class="col-md-9">
@@ -1450,6 +1527,10 @@ if ($action == 'update') {
 <input type="checkbox" name="settlementIDs[]" value="2" <?=(in_array(2,$settlementAry)?'checked="checked"':'');?> > On Arrival from Applicant &nbsp; 
 <input type="checkbox" name="settlementIDs[]" value="3" <?=(in_array(3,$settlementAry)?'checked="checked"':'');?> > Licensed</div>
 </div>
+</div>
+<div class="form-group">
+<label class="col-md-2 control-label" for="settlementDetails">Settlement details</label>
+<div class="col-md-9"><textarea class="form-control" id="settlementDetails" name="settlementDetails" rows="4" placeholder="Add payment, timing, remittance, licensing, or other settlement notes."><?=htmlspecialchars((string)$settlementDetails, ENT_QUOTES, 'UTF-8')?></textarea></div>
 </div>
 <div class="form-group">
 <label class="col-md-5 control-label" for="inputDisabled">&nbsp;</label>

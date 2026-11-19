@@ -9,21 +9,25 @@ if($_GET['act']=="urs"){
 		exit;
 	}
 	$customerAry = array();
-	$sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID FROM orders where id='".$orderID."' LIMIT 1");
+    require_once '../php/order_agents.php';
+    ensureOrderAgentSchema($conn);
+    $sqlOrdr = mysqli_query($conn,"SELECT customerID,vendorID,agentID FROM orders where id='".$orderID."' LIMIT 1");
 	$rowOrdr = $sqlOrdr ? mysqli_fetch_assoc($sqlOrdr) : false;
 	if (!$rowOrdr) {
 		echo json_encode(array());
 		exit;
 	}
-	$customerID = (int)$rowOrdr['customerID'];
-	$vendorID = (int)$rowOrdr['vendorID'];
-	$accountIDs = $customerID . ',' . $vendorID;
-	$sql = mysqli_query($conn,"SELECT id,companyName,type FROM customers WHERE (isOtherCustomer='1' OR id IN (".$accountIDs.") OR assignToID IN (".$accountIDs.")) ORDER BY type,applicantName ASC");
+    $customerID = (int)$rowOrdr['customerID'];
+    $vendorID = (int)$rowOrdr['vendorID'];
+    $agentID = (int)$rowOrdr['agentID'];
+    $accountIDs = $customerID . ',' . $vendorID;
+    $agentCondition = $agentID > 0 ? ' OR id=' . $agentID : '';
+    $sql = mysqli_query($conn,"SELECT id,applicantName,companyName,type,email,mobileNumber FROM customers WHERE (isOtherCustomer='1' OR id IN (".$accountIDs.") OR assignToID IN (".$accountIDs.")".$agentCondition.") ORDER BY type,applicantName ASC");
 	$contacts = array();
 	while ($sql && ($row = mysqli_fetch_assoc($sql))) {
 		$contacts[] = array(
 			'id' => (int)$row['id'],
-			'label' => (string)$row['companyName'] . ' (' . typeNm($row['type']) . ')',
+            'label' => (string)$row['companyName'] . ' (' . typeNm($row['type']) . ')' . ((int)$row['type'] === 4 ? ' — ' . (string)$row['applicantName'] : ''),
 			'type' => (int)$row['type']
 		);
 	}

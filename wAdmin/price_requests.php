@@ -127,7 +127,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $orderID = 0;
 
                 mysqli_query($conn, "INSERT INTO tasks (isDraft,orderID,currentStatusID,subject,dueDate,dueTime,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,taskSMSID,taskMessageID,repeatDate,repeatTime,sendBy,isExpired,createdDate) VALUES
-                ('1','" . $orderID . "','0','" . $subject . "','" . $dueDate . "','" . $dueTime . "','" . $priorityID . "','" . (int)$item['vendor_id'] . "','0','" . $message . "','','0','0',NULL,NULL,'mail','0','" . $createdDate . "')");
+                ('1','" . $orderID . "','0','" . $subject . "','" . $dueDate . "','" . $dueTime . "','" . $priorityID . "','" . (int)$item['vendor_id'] . "','0','" . $message . "','','0','0','1970-01-01',NULL,'mail','0','" . $createdDate . "')");
                 if (mysqli_insert_id($conn) > 0) {
                     $created++;
                 }

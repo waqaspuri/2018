@@ -1313,7 +1313,7 @@ echo htmlspecialchars($scheduleErrors[$_GET['scheduleError']] ?? $scheduleErrors
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Order *</label>
 <div class="col-md-9 selectSrch">
-<?php if ($action == "update" && (int)$orderID === 0 && !(int)$isDraft): ?>
+<?php if ($action == "update" && (int)$orderID === 0): ?>
 <input type="hidden" name="orderID" value="0">
 <div class="form-control-static">Price request (no linked order)</div>
 <?php else: ?>

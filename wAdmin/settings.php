@@ -94,6 +94,7 @@ echo '<div class="alert alert-info"><button type="button" class="close" data-dis
 <p class="form-control-static">
 <?php if ($lastCronRun): ?>
 <?=htmlspecialchars(date('d-M-Y g:i:s A', strtotime($lastCronRun['finishedAt'] ?: $lastCronRun['startedAt'])), ENT_QUOTES, 'UTF-8')?>
+<?=htmlspecialchars(taskScheduleTimezone($conn), ENT_QUOTES, 'UTF-8')?>
 &mdash; <?=htmlspecialchars(ucfirst($lastCronRun['status']), ENT_QUOTES, 'UTF-8')?>
 (<?=htmlspecialchars($lastCronRun['source'] === 'manual' ? 'Run Cron Now button' : 'automatic cron', ENT_QUOTES, 'UTF-8')?>)
 <?php else: ?>

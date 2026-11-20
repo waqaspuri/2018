@@ -92,13 +92,15 @@ function taskScheduleDueCondition($column, $currentTime)
 function startCronRunLog($conn, $source)
 {
     ensureTaskScheduleSchema($conn);
-    mysqli_query($conn, "INSERT INTO cron_run_log (source,startedAt,status) VALUES ('" . mysqli_real_escape_string($conn, $source) . "',NOW(),'running')");
+    $startedAt = taskScheduleNow($conn)->format('Y-m-d H:i:s');
+    mysqli_query($conn, "INSERT INTO cron_run_log (source,startedAt,status) VALUES ('" . mysqli_real_escape_string($conn, $source) . "','" . mysqli_real_escape_string($conn, $startedAt) . "','running')");
     return (int)mysqli_insert_id($conn);
 }
 
 function finishCronRunLog($conn, $runID, $status)
 {
     if ($runID > 0) {
-        mysqli_query($conn, "UPDATE cron_run_log SET finishedAt=NOW(),status='" . mysqli_real_escape_string($conn, $status) . "' WHERE id=" . (int)$runID);
+        $finishedAt = taskScheduleNow($conn)->format('Y-m-d H:i:s');
+        mysqli_query($conn, "UPDATE cron_run_log SET finishedAt='" . mysqli_real_escape_string($conn, $finishedAt) . "',status='" . mysqli_real_escape_string($conn, $status) . "' WHERE id=" . (int)$runID);
     }
 }

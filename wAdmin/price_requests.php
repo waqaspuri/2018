@@ -1,6 +1,10 @@
 <?php
 require_once "include/sessionAdmin.php";
 require_once "include/configure.php";
+require_once(__DIR__ . '/../php/task_reminder_tracking.php');
+require_once(__DIR__ . '/../php/task_schedule.php');
+
+ensureTaskScheduleSchema($conn);
 
 $templateColumn = mysqli_query($conn, "SHOW COLUMNS FROM admin LIKE 'priceRequestMessage'");
 if ($templateColumn && mysqli_num_rows($templateColumn) === 0) {
@@ -109,6 +113,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $priorityRow = $prioritySQL ? mysqli_fetch_assoc($prioritySQL) : false;
             $priorityID = $priorityRow ? (int)$priorityRow['id'] : 0;
             $created = 0;
+            $createdAt = taskScheduleNow($conn);
+            $createdDate = mysqli_real_escape_string($conn, $createdAt->format('Y-m-d H:i:s'));
+            $dueDate = mysqli_real_escape_string($conn, $createdAt->format('Y-m-d'));
+            $dueTime = mysqli_real_escape_string($conn, $createdAt->format('H:i:s'));
 
             foreach ($queue as $item) {
                 $productIDs = array_map('intval', array_keys($item['products']));
@@ -117,16 +125,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $subject = mysqli_real_escape_string($conn, $productList);
                 $message = mysqli_real_escape_string($conn, $renderPriceRequestMessage($item));
                 $orderID = 0;
-                $today = date('Y-m-d');
 
-                mysqli_query($conn, "INSERT INTO tasks (orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,taskSMSID,taskMessageID,repeatDate,sendBy,isExpired,createdDate) VALUES
-                ('" . $orderID . "','0','" . $subject . "','" . $today . "','" . $priorityID . "','" . (int)$item['vendor_id'] . "','0','" . $message . "','','0','0','1970-01-01','mail','0','" . currDateTimeGmt() . "')");
+                mysqli_query($conn, "INSERT INTO tasks (isDraft,orderID,currentStatusID,subject,dueDate,dueTime,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,taskSMSID,taskMessageID,repeatDate,repeatTime,sendBy,isExpired,createdDate) VALUES
+                ('1','" . $orderID . "','0','" . $subject . "','" . $dueDate . "','" . $dueTime . "','" . $priorityID . "','" . (int)$item['vendor_id'] . "','0','" . $message . "','','0','0',NULL,NULL,'mail','0','" . $createdDate . "')");
                 if (mysqli_insert_id($conn) > 0) {
                     $created++;
                 }
             }
             $queue = array();
-            header("Location: tasks.php?act=1");
+            header("Location: tasks.php?status=draft&act=1");
             exit;
         }
     }
@@ -201,7 +208,7 @@ include "include/header.php";
     <?php endforeach; ?>
     </tbody>
 </table>
-<form method="post" style="display:inline;"><input type="hidden" name="queue_action" value="create_tasks"><button class="btn btn-danger" type="submit">Create Task(s)</button></form>
+<form method="post" style="display:inline;"><input type="hidden" name="queue_action" value="create_tasks"><button class="btn btn-danger" type="submit">Create Draft Task(s)</button></form>
 <form method="post" style="display:inline;margin-left:8px;"><input type="hidden" name="queue_action" value="clear"><button class="btn btn-default" type="submit">Clear Queue</button></form>
 <?php else: ?>
 <p class="text-muted">No vendors or products are waiting for review. This queue is stored only in the current session.</p>

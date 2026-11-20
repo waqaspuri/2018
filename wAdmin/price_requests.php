@@ -114,9 +114,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $priorityID = $priorityRow ? (int)$priorityRow['id'] : 0;
             $created = 0;
             $createdAt = taskScheduleNow($conn);
+            $dueAt = $createdAt->modify('+5 minutes');
             $createdDate = mysqli_real_escape_string($conn, $createdAt->format('Y-m-d H:i:s'));
-            $dueDate = mysqli_real_escape_string($conn, $createdAt->format('Y-m-d'));
-            $dueTime = mysqli_real_escape_string($conn, $createdAt->format('H:i:s'));
+            $dueDate = mysqli_real_escape_string($conn, $dueAt->format('Y-m-d'));
+            $dueTime = mysqli_real_escape_string($conn, $dueAt->format('H:i:s'));
 
             foreach ($queue as $item) {
                 $productIDs = array_map('intval', array_keys($item['products']));

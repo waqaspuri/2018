@@ -1,6 +1,8 @@
 <?php
 include "include/sessionAdmin.php";
 include "include/configure.php";
+require_once(__DIR__ . '/../php/task_schedule.php');
+ensureTaskScheduleSchema($conn);
 $sqlStatusTextColorColumn = mysqli_query($conn, "SHOW COLUMNS FROM status LIKE 'textColor'");
 if ($sqlStatusTextColorColumn && mysqli_num_rows($sqlStatusTextColorColumn) === 0) {
     mysqli_query($conn, "ALTER TABLE status ADD COLUMN textColor VARCHAR(20) NULL DEFAULT NULL AFTER bgColor");
@@ -24,7 +26,8 @@ if ($sqlRequireAdminOtpColumn && mysqli_num_rows($sqlRequireAdminOtpColumn) === 
 if(isset($_POST['submit']) && $_POST['submit']=="Submit"){
 if(isset($_POST['action']) && $_POST['action']=="update"){
 $requireAdminOtp = isset($_POST['disableAdminOtp']) && $_POST['disableAdminOtp'] === '1' ? 0 : 1;
-mysqli_query($conn,"UPDATE admin SET address='". mysqli_real_escape_string($conn,$_POST['address'])."',mobileNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',siteUrl='". mysqli_real_escape_string($conn,$_POST['siteUrl'])."',adminEmail='". mysqli_real_escape_string($conn,$_POST['adminEmail'])."',shipmentTrackingApiKey='". mysqli_real_escape_string($conn,$_POST['shipmentTrackingApiKey'] ?? '')."',emailFooter='". mysqli_real_escape_string($conn,$_POST['emailFooter'] ?? '')."',requireAdminOtp='".$requireAdminOtp."' where id='1'");	
+$taskTimezone = isset($_POST['taskTimezone']) && in_array($_POST['taskTimezone'], timezone_identifiers_list(), true) ? $_POST['taskTimezone'] : 'Asia/Karachi';
+mysqli_query($conn,"UPDATE admin SET address='". mysqli_real_escape_string($conn,$_POST['address'])."',mobileNumber='". mysqli_real_escape_string($conn,$_POST['mobileNumber'])."',siteUrl='". mysqli_real_escape_string($conn,$_POST['siteUrl'])."',adminEmail='". mysqli_real_escape_string($conn,$_POST['adminEmail'])."',taskTimezone='".mysqli_real_escape_string($conn,$taskTimezone)."',shipmentTrackingApiKey='". mysqli_real_escape_string($conn,$_POST['shipmentTrackingApiKey'] ?? '')."',emailFooter='". mysqli_real_escape_string($conn,$_POST['emailFooter'] ?? '')."',requireAdminOtp='".$requireAdminOtp."' where id='1'");	
 foreach (array('statusColors' => 'bgColor', 'statusTextColors' => 'textColor') as $colorField => $colorColumn) {
     if (!isset($_POST[$colorField]) || !is_array($_POST[$colorField])) {
         continue;
@@ -51,6 +54,8 @@ header("location: settings.php?act=2");
 }
 $sqlEdit = mysqli_query($conn,"SELECT * FROM admin WHERE id='1'");
 $rowsEdit = mysqli_fetch_assoc($sqlEdit);
+$lastCronResult = mysqli_query($conn, "SELECT source,startedAt,finishedAt,status FROM cron_run_log ORDER BY id DESC LIMIT 1");
+$lastCronRun = $lastCronResult ? mysqli_fetch_assoc($lastCronResult) : null;
 $sqlStatuses = mysqli_query($conn, "SELECT id,status,bgColor,textColor FROM status ORDER BY id ASC");
 $action = "update";
 include "include/header.php"; 
@@ -84,6 +89,21 @@ echo '<div class="alert alert-info"><button type="button" class="close" data-dis
 <div class="panel-body">
 <form class="form-horizontal form-bordered" method="post">
 <div class="form-group">
+<label class="col-md-3 control-label">Last Cron Run</label>
+<div class="col-md-6">
+<p class="form-control-static">
+<?php if ($lastCronRun): ?>
+<?=htmlspecialchars(date('d-M-Y g:i:s A', strtotime($lastCronRun['finishedAt'] ?: $lastCronRun['startedAt'])), ENT_QUOTES, 'UTF-8')?>
+&mdash; <?=htmlspecialchars(ucfirst($lastCronRun['status']), ENT_QUOTES, 'UTF-8')?>
+(<?=htmlspecialchars($lastCronRun['source'] === 'manual' ? 'Run Cron Now button' : 'automatic cron', ENT_QUOTES, 'UTF-8')?>)
+<?php else: ?>
+No cron run has been recorded yet.
+<?php endif; ?>
+</p>
+<p class="help-block">This is updated whenever the automatic cron or the Run Cron Now button executes.</p>
+</div>
+</div>
+<div class="form-group">
 <label class="col-md-3 control-label" for="inputDefault">Site URL</label>
 <div class="col-md-6">
 <input type="text" class="form-control" name="siteUrl" value="<?=$rowsEdit['siteUrl']?>" id="inputDefault" required >
@@ -93,6 +113,23 @@ echo '<div class="alert alert-info"><button type="button" class="close" data-dis
 <label class="col-md-3 control-label" for="inputHelpText">Email Address</label>
 <div class="col-md-6">
 <input type="email" class="form-control" name="adminEmail" value="<?=$rowsEdit['adminEmail']?>" id="inputDefault" required >
+</div>
+</div>
+<div class="form-group">
+<label class="col-md-3 control-label" for="taskTimezone">Task Timezone</label>
+<div class="col-md-6">
+<select class="form-control" id="taskTimezone" name="taskTimezone">
+<?php
+$taskTimezoneOptions = array(
+    'Asia/Karachi' => 'Karachi, Pakistan (UTC+05:00)',
+    'Asia/Dubai' => 'Dubai, UAE (UTC+04:00)',
+    'UTC' => 'UTC (UTC+00:00)'
+);
+foreach ($taskTimezoneOptions as $timezoneValue => $timezoneLabel): ?>
+<option value="<?=htmlspecialchars($timezoneValue, ENT_QUOTES, 'UTF-8')?>" <?=($rowsEdit['taskTimezone'] ?? 'Asia/Karachi') === $timezoneValue ? 'selected' : ''?>><?=htmlspecialchars($timezoneLabel, ENT_QUOTES, 'UTF-8')?></option>
+<?php endforeach; ?>
+</select>
+<p class="help-block">Due and repeat reminder times are evaluated in this timezone. The default is Karachi, Pakistan.</p>
 </div>
 </div>
 <div class="form-group">

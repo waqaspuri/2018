@@ -11,6 +11,9 @@ require_once(__DIR__ . '/../PHPMailer/Exception.php');
 require_once(__DIR__ . '/../PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/../PHPMailer/SMTP.php');
 require_once(__DIR__ . '/../php/mail_config.php');
+require_once(__DIR__ . '/../php/task_schedule.php');
+
+ensureTaskScheduleSchema($conn);
 require_once(__DIR__ . '/../php/whatsapp_tasks.php');
 
 $taskWhatsAppTemplateColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 'taskWhatsAppTemplate'");
@@ -364,6 +367,9 @@ $sendBy = isset($_POST['sendBy']) && is_array($_POST['sendBy']) ? $_POST['sendBy
 $isExpired = "0";
 if(!$isDraft && in_array('immediate', $sendBy)){
     $isExpired = "1";
+    // Scheduled dates and times do not apply to an immediate notification.
+    $_POST['dueTime'] = '';
+    $_POST['repeatTime'] = '';
 }
 
 // Handle dates, setting to a valid default if empty
@@ -373,10 +379,28 @@ if(!$isDraft && in_array('immediate', $sendBy)){
 }
 $repeatDateForSql = !empty($repeatDate) ? sqlDtFormat($repeatDate) : '1970-01-01';
 $repeatDateSql = "'" . mysqli_real_escape_string($conn, $repeatDateForSql) . "'";
+$repeatTimeSql = taskScheduleTimeSql($conn, isset($_POST['repeatTime']) ? $_POST['repeatTime'] : '');
 
 $dueDate = isset($_POST['dueDate']) ? $_POST['dueDate'] : '';
 $dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
 $dueDateSql = "'" . mysqli_real_escape_string($conn, $dueDateForSql) . "'";
+$dueTimeSql = taskScheduleTimeSql($conn, isset($_POST['dueTime']) ? $_POST['dueTime'] : '');
+if (!$isDraft && taskScheduleTimeValue($_POST['dueTime'] ?? '') !== null && trim($dueDate) === '') {
+    header('location: tasks.php?action=add&scheduleError=dueDate');
+    exit;
+}
+if (!$isDraft && taskScheduleTimeValue($_POST['repeatTime'] ?? '') !== null && trim($repeatDate) === '') {
+    header('location: tasks.php?action=add&scheduleError=repeatDate');
+    exit;
+}
+if (!$isDraft && trim($dueDate) !== '' && taskScheduleIsPast($conn, $dueDateForSql, $_POST['dueTime'] ?? '')) {
+    header('location: tasks.php?action=add&scheduleError=duePast');
+    exit;
+}
+if (!$isDraft && trim($repeatDate) !== '' && taskScheduleIsPast($conn, $repeatDateForSql, $_POST['repeatTime'] ?? '')) {
+    header('location: tasks.php?action=add&scheduleError=repeatPast');
+    exit;
+}
 
 $taskSMSID = !empty($_POST['taskSMSID']) ? mysqli_real_escape_string($conn, $_POST['taskSMSID']) : '0';
 $taskWhatsAppTemplate = isset($_POST['taskWhatsAppTemplate']) && is_string($_POST['taskWhatsAppTemplate']) && isset($whatsAppTemplates[$_POST['taskWhatsAppTemplate']]) ? mysqli_real_escape_string($conn, $_POST['taskWhatsAppTemplate']) : '';
@@ -404,8 +428,8 @@ if ($attachments === false) {
 $attachmentFile = mysqli_real_escape_string($conn, !empty($attachments[0][0]) ? $attachments[0][0] : '');
 $attachmentName = mysqli_real_escape_string($conn, !empty($attachments[0][1]) ? $attachments[0][1] : '');
 
-mysqli_query($conn,"INSERT INTO tasks (isDraft,isExpired,taskSMSID,taskWhatsAppTemplate,taskMessageID,repeatDate,orderID,currentStatusID,subject,dueDate,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
-('".$isDraft."','".$isExpired."','".$taskSMSID."','".$taskWhatsAppTemplate."','".$taskMessageID."',".$repeatDateSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
+mysqli_query($conn,"INSERT INTO tasks (isDraft,isExpired,taskSMSID,taskWhatsAppTemplate,taskMessageID,repeatDate,repeatTime,orderID,currentStatusID,subject,dueDate,dueTime,priorityID,assignTo,isSecondReminder,taskMessage,taskSMS,attachmentFile,attachmentName,sendBy,createdDate) VALUES
+('".$isDraft."','".$isExpired."','".$taskSMSID."','".$taskWhatsAppTemplate."','".$taskMessageID."',".$repeatDateSql.",".$repeatTimeSql.",'".$orderID."','".$currentStatusID."','".$subject."',".$dueDateSql.",".$dueTimeSql.",".$priorityIDSql.",'".$assignTo."','".$isSecondReminder."','".$taskMessage."','".$taskSMS."','".$attachmentFile."','".$attachmentName."','".$sendByStr."','".currDateTimeGmt()."')");
 $taskID = mysqli_insert_id($conn);
 if (!$isDraft) saveTaskTemplatesFromPost($conn, (int)$taskMessageID, (int)$taskSMSID);
 foreach ($attachments as $attachment) {
@@ -428,9 +452,27 @@ header($isDraft ? 'location: tasks.php?status=draft&act=1' : "location: orders.p
 
 $repeatDate = isset($_POST['repeatDate']) ? $_POST['repeatDate'] : '';
 $repeatDateForSql = !empty($repeatDate) ? sqlDtFormat($repeatDate) : '1970-01-01';
+$repeatTimeSql = taskScheduleTimeSql($conn, isset($_POST['repeatTime']) ? $_POST['repeatTime'] : '');
 
 $dueDate = isset($_POST['dueDate']) ? $_POST['dueDate'] : '';
 $dueDateForSql = !empty($dueDate) ? sqlDtFormat($dueDate) : '1970-01-01';
+$dueTimeSql = taskScheduleTimeSql($conn, isset($_POST['dueTime']) ? $_POST['dueTime'] : '');
+if (!$isDraft && taskScheduleTimeValue($_POST['dueTime'] ?? '') !== null && trim($dueDate) === '') {
+    header('location: tasks.php?action=edit&id=' . (int)($_POST['id'] ?? 0) . '&scheduleError=dueDate');
+    exit;
+}
+if (!$isDraft && taskScheduleTimeValue($_POST['repeatTime'] ?? '') !== null && trim($repeatDate) === '') {
+    header('location: tasks.php?action=edit&id=' . (int)($_POST['id'] ?? 0) . '&scheduleError=repeatDate');
+    exit;
+}
+if (!$isDraft && trim($dueDate) !== '' && taskScheduleIsPast($conn, $dueDateForSql, $_POST['dueTime'] ?? '')) {
+    header('location: tasks.php?action=edit&id=' . (int)($_POST['id'] ?? 0) . '&scheduleError=duePast');
+    exit;
+}
+if (!$isDraft && trim($repeatDate) !== '' && taskScheduleIsPast($conn, $repeatDateForSql, $_POST['repeatTime'] ?? '')) {
+    header('location: tasks.php?action=edit&id=' . (int)($_POST['id'] ?? 0) . '&scheduleError=repeatPast');
+    exit;
+}
 
 // Sanitize integer fields — default to 0 (NOT NULL columns)
 $taskSMSID       = !empty($_POST['taskSMSID'])       ? (int)$_POST['taskSMSID']       : 0;
@@ -463,12 +505,14 @@ if (!empty($attachments[0][0])) {
 }
 
 $reminderTrackingResetSql = '';
-$existingReminderSettings = mysqli_query($conn, "SELECT dueDate,repeatDate,isSecondReminder,isDraft FROM tasks WHERE id=" . (int)$_POST['id'] . " LIMIT 1");
+$existingReminderSettings = mysqli_query($conn, "SELECT dueDate,dueTime,repeatDate,repeatTime,isSecondReminder,isDraft FROM tasks WHERE id=" . (int)$_POST['id'] . " LIMIT 1");
 $existingReminderRow = $existingReminderSettings ? mysqli_fetch_assoc($existingReminderSettings) : null;
 $publishingDraft = !$isDraft && $existingReminderRow && (int)$existingReminderRow['isDraft'] === 1;
 if ($existingReminderRow && (
     $existingReminderRow['dueDate'] !== $dueDateForSql ||
     $existingReminderRow['repeatDate'] !== $repeatDateForSql ||
+    taskScheduleTimeValue($existingReminderRow['dueTime']) !== taskScheduleTimeValue($_POST['dueTime'] ?? '') ||
+    taskScheduleTimeValue($existingReminderRow['repeatTime']) !== taskScheduleTimeValue($_POST['repeatTime'] ?? '') ||
     (int)$existingReminderRow['isSecondReminder'] !== $isSecondReminder
 )) {
     $reminderTrackingResetSql = "firstReminderSentAt=NULL, secondReminderSentAt=NULL, isExpired='0', ";
@@ -480,10 +524,12 @@ mysqli_query($conn, "UPDATE tasks SET
     taskSMSID       = " . $taskSMSID       . ",
     taskWhatsAppTemplate = '" . $taskWhatsAppTemplate . "',
     repeatDate      = '" . mysqli_real_escape_string($conn, $repeatDateForSql) . "',
+    repeatTime      = " . $repeatTimeSql . ",
     orderID         = " . $orderID         . ",
     currentStatusID = " . $currentStatusID . ",
     subject         = '" . mysqli_real_escape_string($conn, $_POST['subject'])    . "',
     dueDate         = '" . mysqli_real_escape_string($conn, $dueDateForSql)       . "',
+    dueTime         = " . $dueTimeSql . ",
     priorityID      = " . $priorityID      . ",
     assignTo        = '" . mysqli_real_escape_string($conn, implode(',', isset($_POST['assignTo']) && is_array($_POST['assignTo']) ? $_POST['assignTo'] : [])) . "',
     isSecondReminder= " . $isSecondReminder . ",
@@ -789,6 +835,8 @@ if(isset($_GET['action']) && $_GET['action']=="edit"){
 } else {
     $dueDate = '';
     $repeatDate = '';
+    $dueTime = '10:30:00';
+    $repeatTime = '';
     $orderID = '';
     $taskMessageID = '';
     $taskSMSID = '';
@@ -796,7 +844,7 @@ if(isset($_GET['action']) && $_GET['action']=="edit"){
     $subject = '';
     $priorityID = '';
     $assignTo = '';
-    $isSecondReminder = '1';
+    $isSecondReminder = '0';
     $isDraft = 0;
     $taskMessage = '';
     $taskSMS = '';
@@ -918,8 +966,16 @@ echo 'Price request (no linked order)<br /><b>Vendor -</b> '.companyName($assign
 <div class="col-md-9"><?=($dueDate!="" && $dueDate!="0000-00-00" && $dueDate!="1970-01-01")?viewDateFormat($dueDate):''?></div>
 </div>
 <div class="form-group">
+<label class="col-md-2 control-label">Due Time</label>
+<div class="col-md-9"><?=!empty($dueTime) ? date('g:i A', strtotime($dueTime)) : 'Any time'?></div>
+</div>
+<div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Repeat Date</label>
 <div class="col-md-9"><?=($repeatDate!="0000-00-00" && $repeatDate!="1970-01-01")?viewDateFormat($repeatDate):''?></div>
+</div>
+<div class="form-group">
+<label class="col-md-2 control-label">Repeat Time</label>
+<div class="col-md-9"><?=!empty($repeatTime) ? date('g:i A', strtotime($repeatTime)) : 'Any time'?></div>
 </div>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Priority *</label>
@@ -1077,6 +1133,15 @@ $taskSMS = str_replace($search,$replace,$taskSMS);
 <style type="text/css">.aa{color:#3C0 !important;}</style>
 <script type="text/javascript">
 $(document).ready(function(){
+function updateRepeatScheduleFields(clearValues) {
+    var enabled = $('#isSecondReminder').is(':checked');
+    $('#repeatDate, #repeatTime').prop('disabled', !enabled);
+    if (!enabled && clearValues) {
+        $('#repeatDate, #repeatTime').val('');
+    }
+}
+$('#isSecondReminder').on('change', function(){ updateRepeatScheduleFields(true); });
+updateRepeatScheduleFields(false);
 $("#orderID").change(function(){
     var orderID = $(this).val();
     var $assignTo = $('#assignTo');
@@ -1119,6 +1184,46 @@ $('#taskForm').on('submit', function(event){
 
     var dueDate = $.trim($(this).find('[name="dueDate"]').val() || '');
     var repeatDate = $.trim($(this).find('[name="repeatDate"]').val() || '');
+    var dueTime = $.trim($(this).find('[name="dueTime"]').val() || '');
+    var repeatTime = $.trim($(this).find('[name="repeatTime"]').val() || '');
+    var dueDateField = $(this).find('[name="dueDate"]')[0];
+    var repeatDateField = $(this).find('[name="repeatDate"]')[0];
+    dueDateField.setCustomValidity('');
+    repeatDateField.setCustomValidity('');
+    if (dueTime !== '' && dueDate === '') {
+        event.preventDefault();
+        dueDateField.setCustomValidity('Due Date is required when Due Time is set.');
+        dueDateField.reportValidity();
+        return false;
+    }
+    if (repeatTime !== '' && repeatDate === '') {
+        event.preventDefault();
+        repeatDateField.setCustomValidity('Repeat Date is required when Repeat Time is set.');
+        repeatDateField.reportValidity();
+        return false;
+    }
+    function sortableSchedule(dateValue, timeValue) {
+        var parts = dateValue.split('-');
+        if (parts.length !== 3) return {date: '', dateTime: ''};
+        var normalizedDate = parts[2] + '-' + parts[1] + '-' + parts[0];
+        return {date: normalizedDate, dateTime: timeValue === '' ? '' : normalizedDate + 'T' + timeValue};
+    }
+    var currentScheduleTime = '<?=taskScheduleNow($conn)->format('Y-m-d\TH:i')?>';
+    var currentScheduleDate = '<?=taskScheduleNow($conn)->format('Y-m-d')?>';
+    var dueSchedule = sortableSchedule(dueDate, dueTime);
+    var repeatSchedule = sortableSchedule(repeatDate, repeatTime);
+    if (dueSchedule.date !== '' && (dueSchedule.date < currentScheduleDate || (dueSchedule.date === currentScheduleDate && dueSchedule.dateTime !== '' && dueSchedule.dateTime < currentScheduleTime))) {
+        event.preventDefault();
+        dueDateField.setCustomValidity('Due Date and Time cannot be in the past.');
+        dueDateField.reportValidity();
+        return false;
+    }
+    if (repeatSchedule.date !== '' && (repeatSchedule.date < currentScheduleDate || (repeatSchedule.date === currentScheduleDate && repeatSchedule.dateTime !== '' && repeatSchedule.dateTime < currentScheduleTime))) {
+        event.preventDefault();
+        repeatDateField.setCustomValidity('Repeat Date and Time cannot be in the past.');
+        repeatDateField.reportValidity();
+        return false;
+    }
     if (dueDate !== '' && repeatDate !== '' && dueDate === repeatDate) {
         return confirm('Due Date and Repeat Date are the same. Do you want to continue?');
     }
@@ -1194,6 +1299,17 @@ $(".repeatDate").datepicker({todayHighlight:true,autoclose:true});
 <?php if (isset($_GET['whatsappError'])): ?>
 <div class="alert alert-danger">Choose a configured WhatsApp template before enabling WhatsApp for this task.</div>
 <?php endif; ?>
+<?php if (isset($_GET['scheduleError'])): ?>
+<div class="alert alert-danger"><?php
+$scheduleErrors = array(
+    'repeatDate' => 'Repeat Date is required when Repeat Time is set.',
+    'duePast' => 'Due Date and Time cannot be in the past.',
+    'repeatPast' => 'Repeat Date and Time cannot be in the past.',
+    'dueDate' => 'Due Date is required when Due Time is set.'
+);
+echo htmlspecialchars($scheduleErrors[$_GET['scheduleError']] ?? $scheduleErrors['dueDate'], ENT_QUOTES, 'UTF-8');
+?></div>
+<?php endif; ?>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Order *</label>
 <div class="col-md-9 selectSrch">
@@ -1227,12 +1343,14 @@ echo '<option value="'.$rowsOP['id'].'" '.$selected.' >'.$rowsOP['prodName'].' (
 <label class="col-md-4 control-label" for="inputDefault">Due Date</label>
 <div class="col-md-6">
 <input type="text" class="form-control dueDate" readonly="readonly" data-date-format="dd-mm-yyyy" name="dueDate" value="<?=($dueDate!="" && $dueDate!="0000-00-00" && $dueDate!="1970-01-01")?viewDateFormat($dueDate):''?>" id="inputDefault" >
+<input type="time" class="form-control" name="dueTime" value="<?=htmlspecialchars(!empty($dueTime) ? substr($dueTime, 0, 5) : '', ENT_QUOTES, 'UTF-8')?>" aria-label="Due time" style="margin-top:8px">
 </div>
 </div>
 <div class="col-md-6">
 <label class="col-md-4 control-label" for="inputDefault">Repeat Date</label>
 <div class="col-md-6">
-<input type="text" class="form-control repeatDate" readonly="readonly" data-date-format="dd-mm-yyyy" name="repeatDate" value="<?=($repeatDate!="0000-00-00" && $repeatDate!="1970-01-01")?viewDateFormat($repeatDate):''?>" id="inputDefault" >
+<input type="text" class="form-control repeatDate" readonly="readonly" data-date-format="dd-mm-yyyy" name="repeatDate" value="<?=($repeatDate!="0000-00-00" && $repeatDate!="1970-01-01")?viewDateFormat($repeatDate):''?>" id="repeatDate" <?=((int)$isSecondReminder===1)?'':'disabled'?> >
+<input type="time" class="form-control" name="repeatTime" id="repeatTime" value="<?=htmlspecialchars(!empty($repeatTime) ? substr($repeatTime, 0, 5) : '', ENT_QUOTES, 'UTF-8')?>" aria-label="Repeat time" style="margin-top:8px" <?=((int)$isSecondReminder===1)?'':'disabled'?>>
 </div>
 </div>
 </div>
@@ -1608,14 +1726,17 @@ $msgTxt='Task has been deleted successfully';
 }else if($_GET['act']=="4"){
 $msgTxt='<b>Success Message</b> Cron Job has been run successfully';
 }else if($_GET['act']=="5"){
-$msgTxt='<b>Task Message</b> No declared task to run';
+$msgTxt='<b>Task Message</b> Nothing to execute. Any scheduled tasks remain scheduled.';
+}else if($_GET['act']=="6"){
+$msgTxt='<b>Task Message</b> Nothing to execute yet. The scheduled time has not been reached, so the task remains scheduled.';
 }
 echo '<div class="alert alert-info"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>'.$msgTxt.'</strong></div>';
 }
 if (!empty($_GET['notificationReport'])) {
 echo '<div class="alert alert-warning"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong>Notification attempt summary</strong>'.taskNotificationAttemptSummaryHtml($_GET['notificationReport']).'</div>';
 }
-$dtAry = explode(" ",currDateTimeGmt());
+$taskListNow = taskScheduleNow($conn);
+$dtAry = array($taskListNow->format('Y-m-d'));
 ?>
 <section class="panel">
 <header class="panel-heading">

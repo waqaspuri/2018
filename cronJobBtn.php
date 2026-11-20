@@ -10,6 +10,9 @@ require_once(__DIR__ . '/PHPMailer/PHPMailer.php');
 require_once(__DIR__ . '/PHPMailer/SMTP.php');
 require_once(__DIR__ . '/php/mail_config.php');
 require_once(__DIR__ . '/php/whatsapp_tasks.php');
+require_once(__DIR__ . '/php/task_schedule.php');
+
+$cronRunID = startCronRunLog($conn, 'manual');
 
 mysqli_query($conn, "CREATE TABLE IF NOT EXISTS task_attachments (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -31,11 +34,18 @@ function addTaskAttachmentsToMail($mail, $conn, $taskID) {
 }
 
 //exprd
-$dtAry = explode(" ", currDateTimeGmt());
+$taskScheduleNow = taskScheduleNow($conn);
+$dtAry = array($taskScheduleNow->format('Y-m-d'));
+$currentTaskTime = $taskScheduleNow->format('H:i:s');
 $notificationSent = false;
 $notificationReports = array();
+$futureDueResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND dueTime IS NOT NULL AND dueTime<>'00:00:00' AND dueTime>'" . $currentTaskTime . "' AND isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL");
+$futureRepeatResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE repeatDate='" . $dtAry[0] . "' AND repeatTime IS NOT NULL AND repeatTime<>'00:00:00' AND repeatTime>'" . $currentTaskTime . "' AND isSecondReminder='1' AND isDraft=0 AND isExpired='0' AND secondReminderSentAt IS NULL");
+$futureDueRow = $futureDueResult ? mysqli_fetch_assoc($futureDueResult) : array('total' => 0);
+$futureRepeatRow = $futureRepeatResult ? mysqli_fetch_assoc($futureRepeatResult) : array('total' => 0);
+$waitingForScheduledTime = ((int)$futureDueRow['total'] + (int)$futureRepeatRow['total']) > 0;
 
-$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder,repeatDate FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL");
+$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder,repeatDate FROM tasks WHERE dueDate='" . $dtAry[0] . "' AND " . taskScheduleDueCondition('dueTime', $currentTaskTime) . " AND isDraft=0 AND isExpired='0' AND firstReminderSentAt IS NULL");
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
@@ -262,7 +272,7 @@ if ($numRowsExp > 0) {
 }
 
 	$sendRepeatDateEmail = true;
-	$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder FROM tasks WHERE repeatDate='" . $dtAry[0] . "' AND isSecondReminder='1' AND isDraft=0 AND isExpired='0' AND secondReminderSentAt IS NULL");
+$sqlEp = mysqli_query($conn, "SELECT id,assignTo,orderID,subject,taskMessage,taskSMS,sendBy,isSecondReminder FROM tasks WHERE repeatDate='" . $dtAry[0] . "' AND " . taskScheduleDueCondition('repeatTime', $currentTaskTime) . " AND isSecondReminder='1' AND isDraft=0 AND isExpired='0' AND secondReminderSentAt IS NULL");
 $numRowsExp = mysqli_num_rows($sqlEp);
 if ($numRowsExp > 0) {
 	while ($rowsEp = mysqli_fetch_assoc($sqlEp)) {
@@ -519,12 +529,15 @@ if ($numRowsExp > 0) {
 
 	if ($notificationSent) {
 	$act = 4;
+	} else if ($waitingForScheduledTime) {
+	$act = 6;
 } else {
 	$act = 5;
 }
 
 
 $notificationReport = substr(implode("\n", array_slice($notificationReports, 0, 20)), 0, 3000);
+finishCronRunLog($conn, $cronRunID, 'completed');
 header('Location: wAdmin/tasks.php?act=' . $act . ($notificationReport !== '' ? '&notificationReport=' . rawurlencode($notificationReport) : ''));
 
 

@@ -2,7 +2,17 @@
 include "include/sessionAdmin.php";  
 include "include/configure.php";
 
+$logClearToken = isset($_SESSION['log_clear_token']) ? (string)$_SESSION['log_clear_token'] : '';
+if ($logClearToken === '') {
+    $logClearToken = bin2hex(random_bytes(32));
+    $_SESSION['log_clear_token'] = $logClearToken;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'clear_all_logs') {
+    if (!hash_equals($logClearToken, (string)($_POST['token'] ?? ''))) {
+        header('Location: sms_log.php?clear_error=1');
+        exit;
+    }
     $logCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM sms_log");
     $logCountRow = $logCountResult ? mysqli_fetch_assoc($logCountResult) : array('total' => 0);
     $clearedLogs = (int)($logCountRow['total'] ?? 0);
@@ -44,9 +54,13 @@ $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC
     <?php if (isset($_GET['cleared'])): ?>
       <div class="alert alert-success"><?=max(0, (int)$_GET['cleared']);?> communication log record(s) cleared.</div>
     <?php endif; ?>
+    <?php if (isset($_GET['clear_error'])): ?>
+      <div class="alert alert-danger">The logs were not cleared. Please refresh the page and try again.</div>
+    <?php endif; ?>
     <div class="clearfix" style="margin-bottom:15px">
       <form method="post" class="pull-right" onsubmit="return confirm('Clear all Email, SMS, and WhatsApp logs? This cannot be undone.');">
         <input type="hidden" name="action" value="clear_all_logs">
+        <input type="hidden" name="token" value="<?=htmlspecialchars($logClearToken, ENT_QUOTES, 'UTF-8');?>">
         <button type="submit" class="btn btn-danger">Clear All Logs</button>
       </form>
     </div>

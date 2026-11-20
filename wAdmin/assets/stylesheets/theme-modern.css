@@ -11,7 +11,59 @@ body.admin-modern {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     font-size: 13px;
     line-height: 1.55;
+    overflow-x: hidden;
 }
+.admin-modern *, .admin-modern *::before, .admin-modern *::after { box-sizing: border-box; }
+.admin-modern img, .admin-modern video, .admin-modern iframe { max-width: 100%; }
+.admin-modern .content-body, .admin-modern .panel, .admin-modern .panel-body, .admin-modern .row { min-width: 0; max-width: 100%; }
+.admin-modern td, .admin-modern th, .admin-modern label, .admin-modern a, .admin-modern p, .admin-modern h1, .admin-modern h2, .admin-modern h3, .admin-modern h4 { overflow-wrap: anywhere; }
+.admin-modern .dashboard-record-card { display: flex; flex-direction: column; height: 100%; overflow: hidden; border-radius: 12px; }
+.admin-modern .dashboard-record-shell { border: 0; background: transparent; box-shadow: none; }
+.admin-modern .dashboard-record-shell > .panel-body { padding: 0; background: transparent; box-shadow: none; }
+.admin-modern .dashboard-record-shell > .panel-body > .row { margin: 0; }
+.admin-modern .dashboard-record-shell .row > .col-md-12 { padding: 0; }
+.admin-modern .dashboard-record-grid { display: flex; flex-wrap: wrap; align-items: flex-start; row-gap: 14px; column-gap: 14px; margin: 0 0 20px; }
+.admin-modern .dashboard-record-column { flex: 1 1 340px; width: auto; max-width: 100%; margin: 0; padding: 0 !important; min-width: 0; }
+.admin-modern .dashboard-record-column > .dashboard-order-status { margin: 0; }
+.admin-modern .dashboard-record-column > .dashboard-record-shell,
+.admin-modern .dashboard-record-column > .dashboard-order-status { height: 100%; }
+.admin-modern .order-documents-group { margin: 6px 0 10px; }
+.admin-modern .order-documents-group > .control-label { padding-top: 6px; }
+.admin-modern .order-documents-group > div[class*="col-"] { padding-top: 4px; padding-bottom: 4px; }
+.admin-modern .order-documents-group .table { margin: 0; border: 1px solid #e2e8f0; border-radius: 7px; overflow: hidden; }
+.admin-modern .order-documents-group .table > thead > tr > th { padding: 5px 8px; font-size: 10px; line-height: 1.3; }
+.admin-modern .order-documents-group .table > tbody > tr > td { padding: 5px 8px; font-size: 11px; line-height: 1.35; }
+.admin-modern .order-documents-group .table > tbody > tr > td:first-child { width: 36px; text-align: center; }
+.admin-modern .order-documents-group .table a { display: inline-block; margin: 1px 4px 1px 0; }
+.admin-modern .order-documents-group input[type="file"] { display: inline-block; width: auto; max-width: 100%; margin: 0 8px 6px 0; }
+.admin-modern .order-documents-group .btn { margin: 2px 0 4px; padding: 4px 8px; font-size: 11px; line-height: 1.3; }
+.admin-modern .order-documents-group .order-file-actions { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; white-space: nowrap; }
+.admin-modern .order-documents-group .order-file-delete { flex: 0 0 auto; font-size: 11px; }
+.admin-modern .order-documents-group .order-file-url-copy { display: inline-flex !important; align-items: center; flex: 0 1 auto; gap: 4px; width: auto; }
+.admin-modern .order-documents-group .order-file-url-copy .order-file-url { width: 150px !important; max-width: 150px !important; height: 26px; padding: 3px 6px; font-size: 10px; }
+.admin-modern .order-documents-group .order-file-url-copy .btn { flex: 0 0 auto; margin: 0; }
+.admin-modern .dashboard-record-card .panel-heading { background: #f8fafc; }
+.admin-modern .dashboard-record-card .panel-title { font-size: 13px; }
+.admin-modern .dashboard-record-card .panel-actions a { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 9px; border: 1px solid #dce3ec; border-radius: 7px; background: #fff; font-size: 11px; font-weight: 600; }
+.admin-modern .dashboard-record-card .panel-body { flex: 1 1 auto; padding: 0; }
+.admin-modern .dashboard-record-card .table-responsive { overflow: visible; margin: 0; }
+.admin-modern .dashboard-record-card .table-responsive > .table { display: block; width: 100%; min-width: 0; margin: 0; border: 0; table-layout: fixed; }
+.admin-modern .dashboard-record-card .table > thead { display: none; }
+.admin-modern .dashboard-record-card .table > tbody { display: block; padding: 2px 0 4px; }
+.admin-modern .dashboard-record-card .table > tbody > tr { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; margin: 9px 12px; padding: 11px 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.035); }
+.admin-modern .dashboard-record-card .table > tbody > tr:hover { background: #fafcff; border-color: #cbd5e1; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td { display: block; width: auto; border: 0; padding: 0 !important; font-size: 12px; line-height: 1.45; color: #475569; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td:first-child { display: none; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td:nth-child(2) { font-weight: 600; color: #1e293b; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td:nth-child(2) a { color: #2563eb; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td:last-child { margin-left: auto; color: #64748b; font-size: 11px; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td.dashboard-view-cell { flex: 0 0 auto; margin-left: auto; }
+.admin-modern .dashboard-record-view { display: inline-flex; align-items: center; justify-content: center; min-width: 52px; min-height: 28px; padding: 4px 9px; border: 1px solid #dce3ec; border-radius: 7px; background: #f8fafc; color: #334155 !important; font-size: 11px; font-weight: 600; text-decoration: none !important; }
+.admin-modern .dashboard-record-view:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8 !important; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td:nth-child(3):after { content: " · "; color: #cbd5e1; margin-left: 8px; }
+.admin-modern .dashboard-record-card .table > tbody > tr > td[colspan] { width: 100%; text-align: center; color: #64748b; }
+@media (min-width: 1200px) { .admin-modern .dashboard-record-column { flex: 0 0 calc(50% - 7px); } }
+@media (min-width: 1700px) { .admin-modern .dashboard-record-column { flex-basis: calc(33.333333% - 10px); } }
 .admin-modern a { color: var(--ui-blue); }
 .admin-modern a:hover { color: #1d4ed8; }
 .admin-modern a:focus-visible,
@@ -297,6 +349,7 @@ html.sidebar-left-collapsed.fixed .admin-modern .sidebar-left .nano {
     html.fixed .admin-modern .page-header { margin: 0; }
 }
 @media (max-width: 767px) {
+    html, body { max-width: 100%; overflow-x: hidden; }
     .admin-modern .header .logo-container { border-bottom: 1px solid #e2e8f0; }
     .admin-modern .header .toggle-sidebar-left { background: #eff6ff; color: #2563eb; }
     .admin-modern .content-body { padding: 0 12px 16px; }
@@ -306,4 +359,16 @@ html.sidebar-left-collapsed.fixed .admin-modern .sidebar-left .nano {
     .admin-modern .content-body .table > thead > tr > th,
     .admin-modern .content-body .table > tbody > tr > td { padding: 9px 10px; }
     .admin-modern .body-sign .panel-sign .panel-body { padding: 22px; }
+    .admin-modern .page-header h2 { max-width: 65%; line-height: 1.3; }
+    .admin-modern .page-header .right-wrapper { max-width: 35%; overflow-wrap: anywhere; }
+    .admin-modern .panel-actions { max-width: 100%; }
+    .admin-modern .table-responsive { width: 100%; margin-bottom: 12px; border: 0; }
+    .admin-modern .table-responsive > .table { min-width: 620px; }
+    .admin-modern .dashboard-record-card .table-responsive > .table { min-width: 0; }
+    .admin-modern .dashboard-record-card .table > tbody > tr { padding: 11px 12px; }
+    .admin-modern .dashboard-record-grid { display: flex; flex-direction: column; row-gap: 14px; column-gap: 14px; margin: 0 0 14px; }
+    .admin-modern .dashboard-record-column { display: block; flex: 0 0 auto; width: 100%; margin: 0; padding: 0 !important; }
+    .admin-modern .form-horizontal .control-label { white-space: normal; }
+    .admin-modern .order-documents-group > .control-label { float: none; width: 100%; text-align: left; padding: 0 12px 4px; }
+    .admin-modern .order-documents-group > div[class*="col-"] { width: 100%; padding-top: 0; }
 }

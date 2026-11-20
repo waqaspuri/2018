@@ -6,6 +6,10 @@ $modifiedDateColumn = mysqli_query($conn, "SHOW COLUMNS FROM orders LIKE 'modifi
 if ($modifiedDateColumn && mysqli_num_rows($modifiedDateColumn) === 0) {
     mysqli_query($conn, "ALTER TABLE orders ADD COLUMN modifiedDate DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP AFTER createdDate");
 }
+$taskModifiedDateColumn = mysqli_query($conn, "SHOW COLUMNS FROM tasks LIKE 'modifiedDate'");
+if ($taskModifiedDateColumn && mysqli_num_rows($taskModifiedDateColumn) === 0) {
+    mysqli_query($conn, "ALTER TABLE tasks ADD COLUMN modifiedDate DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP AFTER createdDate");
+}
 if(isset($_GET['toDo']) && $_GET['toDo']=="mark"){
 mysqli_query($conn,"UPDATE to_do SET isDone='1' WHERE id='".$_GET['id']."'");
 header("location: index.php");
@@ -51,6 +55,16 @@ $dtAry = explode(" ",currDateTimeGmt());
 .dashboard-orders-panel .dashboard-order-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:5px 10px;min-height:32px;border:1px solid #dce3ec;border-radius:7px;background:#fff;color:#334155;font-size:12px;font-weight:600;line-height:1.4;white-space:nowrap;text-decoration:none}
 .dashboard-orders-panel .dashboard-order-button:hover{background:#eff6ff;border-color:#b9cff5;color:#1d4ed8}
 .dashboard-order-list{list-style:none;margin:0;padding:0}
+.dashboard-order-status > .panel-body{padding:0;border-radius:0 0 12px 12px}
+.dashboard-order-status .table-responsive{overflow:visible;margin:0}
+.dashboard-order-status .table{display:block;width:100%;min-width:0;margin:0;border:0}
+.dashboard-order-status .table>thead{display:none}
+.dashboard-order-status .table>tbody{display:block;padding:2px 0 4px}
+.dashboard-order-status .table>tbody>tr{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;margin:9px 12px;padding:11px 12px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.035)}
+.dashboard-order-status .table>tbody>tr>td{display:block;width:auto;border:0;padding:0!important;font-size:12px;line-height:1.45;color:#475569}
+.dashboard-order-status .table>tbody>tr>td:first-child{display:none}
+.dashboard-order-status .table>tbody>tr>td:last-child{margin-left:auto}
+.dashboard-order-status .table>tbody>tr>td[colspan]{width:100%;text-align:center}
 .dashboard-order-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #edf1f5}
 .dashboard-order-item:hover{background:#fafcff}
 .dashboard-order-info{flex:1;min-width:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
@@ -70,7 +84,7 @@ $dtAry = explode(" ",currDateTimeGmt());
 <div class="dashboard-status-grid">
 <?php
 $dashboardOrdersByStatus = array();
-$dashboardOrdersPerStatus = 10;
+$dashboardOrdersPerStatus = 5;
 $dashboardOrdersResult = mysqli_query($conn, "SELECT o.id,o.statusID,o.invoiceNo,o.documentOrderNo,o.quantity,o.orderUOM,o.createdDate,
     v.applicantName AS vendorName,c.applicantName AS customerName,p.prodName
     FROM orders AS o
@@ -128,34 +142,14 @@ while($rows = mysqli_fetch_assoc($sqlOrdr)){
 </section>
 
 
-<div class="col-md-12 noPadding">
-<section class="panel">
-<div class="panel-body">
-<div class="row">
-<div class="col-md-12">
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>orders.php"><b>View All</b></a> </div>
-<h2 class="panel-title">Orders Arrival ETA</h2>
-</header>
-<div class="panel-body" style="padding:0">
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-condensed mb-none taskLstTab">
-<thead>
-<tr>
-<th width="5%">SNo</th>
-<th width="15%">Proforma Invoice</th>
-<th width="14%">Customer </th>
-<th width="15%">Product</th>
-<th width="15%">ETA</th>
-<th width="18%">Status</th>
-<th width="18%" class="text-center">In-Transit</th>
-</tr>
-</tr>
-</thead>
-<tbody>
+<div class="dashboard-record-grid" aria-label="Dashboard summaries">
+<div class="col-md-12 noPadding dashboard-record-column">
+<details class="dashboard-order-status" style="--status-color:#ffffb3" open>
+<summary><span class="dashboard-status-dot" aria-hidden="true"></span><span class="dashboard-status-name">Orders Arrival ETA</span><span class="dashboard-status-count"><?php $arrivalCountResult=mysqli_query($conn,"SELECT COUNT(*) AS total FROM orders WHERE DATE(eta)>='".$dtAry[0]."' AND statusID='8'"); $arrivalCountRow=$arrivalCountResult?mysqli_fetch_assoc($arrivalCountResult):array('total'=>0); echo (int)$arrivalCountRow['total']; ?></span></summary>
+<div class="status-orders-link"><span>Latest <?=min(5,(int)$arrivalCountRow['total']);?> of <?=(int)$arrivalCountRow['total'];?></span><a href="<?=$siteUrl;?>orders.php?sID=8">View all <span aria-hidden="true">→</span></a></div>
+<ul class="dashboard-order-list">
 <?php
-$sqlOrdr = mysqli_query($conn,"SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,o.orderTransport,o.eta,o.dta,o.id,o.invoiceNo,o.customerID,p.prodName,o.statusID FROM orders as o,products as p WHERE DATE(o.eta)>='".$dtAry[0]."' and o.statusID='8' and p.id=o.productID ORDER BY o.id DESC LIMIT 10");
+$sqlOrdr = mysqli_query($conn,"SELECT o.documentOrderNo,o.billNo,o.latestDateShipment,o.expiryDate,o.documentDate,o.orderTransport,o.eta,o.dta,o.id,o.invoiceNo,o.customerID,p.prodName,o.statusID FROM orders as o,products as p WHERE DATE(o.eta)>='".$dtAry[0]."' and o.statusID='8' and p.id=o.productID ORDER BY COALESCE(o.modifiedDate,o.createdDate) DESC,o.id DESC LIMIT 5");
 $numRowsOrdr = mysqli_num_rows($sqlOrdr);
 if($numRowsOrdr>0){
 $sno=0;
@@ -180,137 +174,60 @@ if($rows['billNo']==""){ $msgTxt.='<p>- Bill Number</p>';}
 if($rows['documentOrderNo']==""){ $msgTxt.='<p>- Document Order No</p>';}
 echo '<style type="text/css">.statusBgTD'.$sno.' td{background:'.statusBg($rows['statusID']).'}</style>';
 }
-echo '<tr '.(($rows['dta']=="--" || $rows['eta']=="--")?'class="bgRed"':'').'>
-<td>&nbsp; '.$sno.'</td>
-<td><a href="orders.php?action=view&id='.$rows['id'].'">'.$rows['invoiceNo'].'</a></td>
-<td><a href="orders.php?action=view&id='.$rows['id'].'">'.customerName($rows['customerID']).'</a></td>
-<td>'.$rows['prodName'];
-if($msgTxt){echo '<div class="alert alert-danger smlTxt"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button><strong><p>Error Fields :-</p> '.$msgTxt.'</strong></div>';}
-echo '</td>
-<td align="center">'.viewDateFormat($rows['eta']).' <br />'.viewByDaysFormat($rows['eta']).'</td>
-<td><span class="statusBg" style="background:'.statusBg($rows['statusID']).';">'.statusNm($rows['statusID']).'</span></td>
-<td align="center">'.$getRDStg.'</td>
-</tr>';
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><div class="dashboard-order-title"><a href="orders.php?action=view&amp;id='.(int)$rows['id'].'">'.htmlspecialchars((string)$rows['invoiceNo'],ENT_QUOTES,'UTF-8').'</a>';
+if (trim((string)$rows['documentOrderNo']) !== '') echo '<span class="dashboard-order-reference">Order '.htmlspecialchars((string)$rows['documentOrderNo'],ENT_QUOTES,'UTF-8').'</span>';
+echo '</div><div class="dashboard-order-product"><span>'.htmlspecialchars((string)$rows['prodName'],ENT_QUOTES,'UTF-8').'</span><span class="dashboard-order-quantity">ETA '.htmlspecialchars((string)viewDateFormat($rows['eta']),ENT_QUOTES,'UTF-8').' · Transit '.$getRDStg.'</span></div>';
+echo '<div class="dashboard-order-parties"><span><b>Customer</b> '.htmlspecialchars((string)customerName($rows['customerID']),ENT_QUOTES,'UTF-8').'</span><span><b>Status</b> '.htmlspecialchars((string)statusNm($rows['statusID']),ENT_QUOTES,'UTF-8').'</span></div>';
+if ($msgTxt !== '') echo '<div class="dashboard-order-date">Missing: '.htmlspecialchars(trim(strip_tags(str_replace('</p>',' · ',$msgTxt))),ENT_QUOTES,'UTF-8').'</div>';
+echo '</div><a class="dashboard-order-button dashboard-order-view" href="orders.php?action=view&amp;id='.(int)$rows['id'].'">View <span aria-hidden="true">→</span></a></li>';
 }
 }else{
-echo "<tr>
-<td colspan='8' align='center'>No Data Found.</td>
-</tr>";
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><span class="text-muted">No ETA orders found.</span></div></li>';
 }
 ?>
-</tbody>
-</table>
-</div>
-</div>
-</section>
-</div>
-</div>
-</div>
-</section>
+</ul>
+</details>
 </div>
 
-<div class="col-md-12 noPadding">
-<section class="panel">
-<div class="panel-body">
-<div class="row">
-<div class="col-md-12">
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>orders.php"><b>View All</b></a> </div>
-<h2 class="panel-title">Orders Quene</h2>
-</header>
-<div class="panel-body" style="padding:0">
-<style>
-.orders-queue-status{display:inline-block;max-width:100%;padding:6px 10px!important;border-radius:999px!important;font-size:11px!important;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;color:#263238!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
-</style>
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-condensed mb-none taskLstTab">
-<thead>
-<tr>
-<th width="5%">SNo</th>
-<th width="8%">ID</th>
-<th width="15%">Vendor</th>
-<th width="15%">Customer</th>
-<th width="18%">Product Designation</th>
-<th width="20%">Status</th>
-<th width="19%">Created On</th>
-</tr>
-</tr>
-</thead>
-<tbody>
+<div class="col-md-12 noPadding dashboard-record-column">
+<details class="dashboard-order-status" style="--status-color:#dbeafe" open>
+<summary><span class="dashboard-status-dot" aria-hidden="true"></span><span class="dashboard-status-name">Orders Queue</span><span class="dashboard-status-count"><?php $queueCountResult=mysqli_query($conn,"SELECT COUNT(*) AS total FROM orders WHERE CAST(statusID AS UNSIGNED) BETWEEN 5 AND 18"); $queueCountRow=$queueCountResult?mysqli_fetch_assoc($queueCountResult):array('total'=>0); echo (int)$queueCountRow['total']; ?></span></summary>
+<div class="status-orders-link"><span>Latest <?=min(5,(int)$queueCountRow['total']);?> of <?=(int)$queueCountRow['total'];?></span><a href="<?=$siteUrl;?>orders.php">View all <span aria-hidden="true">→</span></a></div>
+<ul class="dashboard-order-list">
 <?php
-$sqlOrdr = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.vendorID,o.customerID,p.prodName,o.createdDate,o.statusID FROM orders as o,products as p WHERE p.id=o.productID AND CAST(o.statusID AS UNSIGNED) BETWEEN 5 AND 18 ORDER BY o.id DESC LIMIT 10");
+$sqlOrdr = mysqli_query($conn,"SELECT o.id,o.invoiceNo,o.vendorID,o.customerID,p.prodName,o.createdDate,o.modifiedDate,o.statusID FROM orders as o,products as p WHERE p.id=o.productID AND CAST(o.statusID AS UNSIGNED) BETWEEN 5 AND 18 ORDER BY COALESCE(o.modifiedDate,o.createdDate) DESC,o.id DESC LIMIT 5");
 $numRowsOrdr = mysqli_num_rows($sqlOrdr);
 if($numRowsOrdr>0){
 $sno=0;
 while($rows = mysqli_fetch_assoc($sqlOrdr)){
 $sno++;
-echo '<tr>
-<td>&nbsp; '.$sno.'</td>
-<td><a href="orders.php?action=view&id='.$rows['id'].'">'.$rows['invoiceNo'].'</a></td>
-<td>'.customerName($rows['vendorID']).'</td>
-<td>'.customerName($rows['customerID']).'</td>
-<td>'.$rows['prodName'].'</td>
-<td><span class="label label-default orders-queue-status" title="'.htmlspecialchars((string)statusNm($rows['statusID']), ENT_QUOTES, 'UTF-8').'" style="background:'.htmlspecialchars((string)statusBg($rows['statusID']), ENT_QUOTES, 'UTF-8').';">'.htmlspecialchars((string)statusNm($rows['statusID']), ENT_QUOTES, 'UTF-8').'</span></td>
-<td align="center">'.viewDtTm($rows['createdDate']).'</td>
-</tr>';
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><div class="dashboard-order-title"><a href="orders.php?action=view&amp;id='.(int)$rows['id'].'">'.htmlspecialchars((string)$rows['invoiceNo'],ENT_QUOTES,'UTF-8').'</a></div>';
+echo '<div class="dashboard-order-product"><span>'.htmlspecialchars((string)$rows['prodName'],ENT_QUOTES,'UTF-8').'</span></div>';
+echo '<div class="dashboard-order-parties"><span><b>Vendor</b> '.htmlspecialchars((string)customerName($rows['vendorID']),ENT_QUOTES,'UTF-8').'</span><span><b>Customer</b> '.htmlspecialchars((string)customerName($rows['customerID']),ENT_QUOTES,'UTF-8').'</span></div>';
+echo '<div class="dashboard-order-date">'.htmlspecialchars((string)statusNm($rows['statusID']),ENT_QUOTES,'UTF-8').' · Updated '.htmlspecialchars((string)viewDtTm(!empty($rows['modifiedDate']) ? $rows['modifiedDate'] : $rows['createdDate']),ENT_QUOTES,'UTF-8').'</div></div>';
+echo '<a class="dashboard-order-button dashboard-order-view" href="orders.php?action=view&amp;id='.(int)$rows['id'].'">View <span aria-hidden="true">→</span></a></li>';
 }
 }else{
-echo "<tr>
-<td colspan='7' align='center'>No Data Found.</td>
-</tr>";
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><span class="text-muted">No queued orders found.</span></div></li>';
 }
 ?>
-</tbody>
-</table>
-</div>
-</div>
-</section>
-</div>
-</div>
-</div>
-</section>
+</ul>
+</details>
 </div>
 
-<div class="col-md-12 noPadding">
-<section class="panel">
-<div class="panel-body">
-<div class="row">
-<div class="col-md-12">
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>tasks.php"><b>View All</b></a> </div>
-<h2 class="panel-title">Latest Tasks</h2>
-</header>
-<div class="panel-body" style="padding:0">
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-condensed mb-none taskLstTab">
-<thead>
-<tr>
-<th width="5%">SNo</th>
-<th width="15%">Customer</th>
-<th width="10%">Subject</th>
-<th width="10%">Due Date</th>
-<th width="10%">Repeat Date</th>
-<th width="20%">Assign To</th>
-</tr>
-</tr>
-</thead>
-<tbody>
+<div class="col-md-12 noPadding dashboard-record-column">
+<details class="dashboard-order-status" style="--status-color:#e2e8f0" open>
+<summary><span class="dashboard-status-dot" aria-hidden="true"></span><span class="dashboard-status-name">Latest Tasks</span><span class="dashboard-status-count"><?php $taskCountResult=mysqli_query($conn,"SELECT COUNT(*) AS total FROM tasks t JOIN orders o ON o.id=t.orderID"); $taskCountRow=$taskCountResult?mysqli_fetch_assoc($taskCountResult):array('total'=>0); echo (int)$taskCountRow['total']; ?></span></summary>
+<div class="status-orders-link"><span>Latest <?=min(5,(int)$taskCountRow['total']);?> of <?=(int)$taskCountRow['total'];?></span><a href="<?=$siteUrl;?>tasks.php">View all <span aria-hidden="true">→</span></a></div>
+<ul class="dashboard-order-list">
 <?php
-$sqlOrdr = mysqli_query($conn,"SELECT t.id,t.subject,t.dueDate,t.repeatDate,t.priorityID,t.assignTo,o.customerID FROM tasks as t,orders o where o.id=t.orderID ORDER BY o.id DESC LIMIT 10");
+$sqlOrdr = mysqli_query($conn,"SELECT t.id,t.subject,t.dueDate,t.repeatDate,t.priorityID,t.assignTo,t.createdDate,t.modifiedDate,o.customerID FROM tasks as t,orders o where o.id=t.orderID ORDER BY COALESCE(t.modifiedDate,t.createdDate) DESC,t.id DESC LIMIT 5");
 $numRowsOrdr = mysqli_num_rows($sqlOrdr);
 if($numRowsOrdr>0){
 $sno=0;
 while($rows = mysqli_fetch_assoc($sqlOrdr)){
 $sno++;
-echo '<tr>
-<td>&nbsp; '.$sno.'</td>
-<td><a title="View this record" href="tasks.php?action=view&id='.$rows['id'].'">'.customerName($rows['customerID']).'</a></td>
-<td>'.stringTxtLimit($rows['subject'],50).'</td>
-<td>'.viewDateFormat($rows['dueDate']).'</td>
-<td>'.((isset($rows['repeatDate']) && $rows['repeatDate']!='0000-00-00')?viewDateFormat($rows['repeatDate']):'').'</td>
-<td>';
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><div class="dashboard-order-title"><a href="tasks.php?action=view&amp;id='.(int)$rows['id'].'">'.htmlspecialchars((string)stringTxtLimit($rows['subject'],50),ENT_QUOTES,'UTF-8').'</a></div>';
 $assignToAry = @explode(",",$rows['assignTo']);
 $asignToStr = array();
 if(is_array($assignToAry)){
@@ -319,91 +236,58 @@ if($assignToVal!=""){
 $asignToStr[] = customerName($assignToVal);
 }
 }
-echo @implode(", ",$asignToStr);
+ $taskAssignLabel = @implode(", ",$asignToStr);
 }
-echo '</td>
-</tr>';
+echo '<div class="dashboard-order-product"><span>'.htmlspecialchars((string)customerName($rows['customerID']),ENT_QUOTES,'UTF-8').'</span></div><div class="dashboard-order-parties"><span><b>Due</b> '.htmlspecialchars((string)viewDateFormat($rows['dueDate']),ENT_QUOTES,'UTF-8').'</span>';
+if (!empty($rows['repeatDate']) && $rows['repeatDate'] !== '0000-00-00') echo '<span><b>Repeat</b> '.htmlspecialchars((string)viewDateFormat($rows['repeatDate']),ENT_QUOTES,'UTF-8').'</span>';
+echo '</div><div class="dashboard-order-date">Assigned to '.htmlspecialchars((string)($taskAssignLabel ?? ''),ENT_QUOTES,'UTF-8').' · Updated '.htmlspecialchars((string)viewDtTm(!empty($rows['modifiedDate']) ? $rows['modifiedDate'] : $rows['createdDate']),ENT_QUOTES,'UTF-8').'</div></div>';
+echo '<a class="dashboard-order-button dashboard-order-view" href="tasks.php?action=view&amp;id='.(int)$rows['id'].'">View <span aria-hidden="true">→</span></a></li>';
 }
 }else{
-echo "<tr>
-<td colspan='8' align='center'>No Data Found.</td>
-</tr>";
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><span class="text-muted">No recent tasks found.</span></div></li>';
 }
 ?>
-</tbody>
-</table>
-</div>
-</div>
-</section>
-</div>
-</div>
-</div>
-</section>
+</ul>
+</details>
 </div>
 
 
 
 
-<div class="col-md-12 noPadding">
-<section class="panel">
-<div class="panel-body">
-<div class="row">
-<div class="col-md-12">
-<section class="panel">
-<header class="panel-heading">
-<div class="panel-actions"> <a href="<?=$siteUrl;?>tasks.php"><b>View All</b></a> </div>
-<h2 class="panel-title">Order by Leads</h2>
-</header>
-<div class="panel-body" style="padding:0">
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-condensed mb-none taskLstTab">
-<thead>
-<tr>
-<th width="5%">SNo</th>
-<th width="6%">ID</th>
-<th width="15%">Vendor</th>
-<th width="15%">Customer</th>
-<th width="20%">Product Designation</th>
-</tr>
-</tr>
-</thead>
-<tbody>
+<div class="col-md-12 noPadding dashboard-record-column">
+<?php
+$leadCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM orders WHERE statusID='1'");
+$leadCountRow = $leadCountResult ? mysqli_fetch_assoc($leadCountResult) : array('total' => 0);
+?>
+<details class="dashboard-order-status" style="--status-color:#e9d5ff" open>
+<summary><span class="dashboard-status-dot" aria-hidden="true"></span><span class="dashboard-status-name">Order by Leads</span><span class="dashboard-status-count"><?=(int)$leadCountRow['total'];?></span></summary>
+<div class="status-orders-link"><span>Latest <?=min(5,(int)$leadCountRow['total']);?> of <?=(int)$leadCountRow['total'];?></span><a href="<?=$siteUrl;?>leads.php">View all <span aria-hidden="true">→</span></a></div>
+<ul class="dashboard-order-list">
 <?php
 $sqlSrch = '';
-$sqlOrdr = mysqli_query($conn,"SELECT o.dta,o.eta,o.newETA,o.id,o.invoiceNo,o.vendorID,o.customerID,p.prodName,o.createdDate,o.statusID FROM orders as o,products as p WHERE p.id=o.productID AND o.statusID='1' ".$sqlSrch." ORDER BY o.id DESC LIMIT 10");
-$numRowsOrdr = mysqli_num_rows($sqlOrdr);
+$sqlOrdr = mysqli_query($conn,"SELECT o.dta,o.eta,o.newETA,o.id,o.invoiceNo,o.vendorID,o.customerID,p.prodName,o.createdDate,o.modifiedDate,o.statusID FROM orders as o,products as p WHERE p.id=o.productID AND o.statusID='1' ".$sqlSrch." ORDER BY COALESCE(o.modifiedDate,o.createdDate) DESC,o.id DESC LIMIT 5");
+$numRowsOrdr = $sqlOrdr ? mysqli_num_rows($sqlOrdr) : 0;
 if($numRowsOrdr>0){
 $sno=0;
 while($rows = mysqli_fetch_assoc($sqlOrdr)){
 $sno++;
-echo '<tr>
-<td>&nbsp; '.$sno.'</td>
-<td><a href="orders.php?action=view&id='.$rows['id'].'">'.$rows['invoiceNo'].'</a></td>
-<td>'.customerName($rows['vendorID']).'</td>
-<td>'.customerName($rows['customerID']).'</td>
-<td>'.$rows['prodName'].'</td>
-</tr>';
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><div class="dashboard-order-title"><a href="orders.php?action=view&amp;id='.(int)$rows['id'].'">'.htmlspecialchars((string)$rows['invoiceNo'],ENT_QUOTES,'UTF-8').'</a></div>';
+echo '<div class="dashboard-order-product"><span>'.htmlspecialchars((string)$rows['prodName'],ENT_QUOTES,'UTF-8').'</span></div>';
+echo '<div class="dashboard-order-parties"><span><b>Vendor</b> '.htmlspecialchars((string)customerName($rows['vendorID']),ENT_QUOTES,'UTF-8').'</span><span><b>Customer</b> '.htmlspecialchars((string)customerName($rows['customerID']),ENT_QUOTES,'UTF-8').'</span></div>';
+echo '<div class="dashboard-order-date">Updated '.htmlspecialchars((string)viewDtTm(!empty($rows['modifiedDate']) ? $rows['modifiedDate'] : $rows['createdDate']),ENT_QUOTES,'UTF-8').'</div></div>';
+echo '<a class="dashboard-order-button dashboard-order-view" href="orders.php?action=view&amp;id='.(int)$rows['id'].'">View <span aria-hidden="true">→</span></a></li>';
 }
 }else{
-echo "<tr>
-<td colspan='8' align='center'>No Data Found.</td>
-</tr>";
+echo '<li class="dashboard-order-item"><div class="dashboard-order-info"><span class="text-muted">No lead orders found.</span></div></li>';
 }
 ?>
-</tbody>
-</table>
-</div>
-</div>
-</section>
-</div>
-</div>
-</div>
-</section>
+ </ul></details>
 </div>
 
 
 
 </section>
+</div>
 </div>
 </section>
 <script type="text/javascript">$(document).ready(function(){

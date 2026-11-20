@@ -25,7 +25,7 @@ header("location: toDo.php?act=1");
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/vendor/bootstrap-multiselect/bootstrap-multiselect.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme.css" />
 <link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-custom1.1.css?v=<?=rawurlencode((string)@filemtime(__DIR__ . '/../assets/stylesheets/theme-custom1.1.css'))?>">
-<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=1" media="screen">
+<link rel="stylesheet" href="<?=$siteUrl;?>assets/stylesheets/theme-modern.css?v=3" media="screen">
 <script src="<?=$siteUrl;?>assets/vendor/modernizr/modernizr.js"></script>
 <script src="<?=$siteUrl;?>assets/vendor/jquery/jquery.js"></script>
 </head>

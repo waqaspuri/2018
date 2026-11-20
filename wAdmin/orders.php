@@ -135,9 +135,6 @@ if (isset($_POST['deleteOrder'])) {
     }
     $taskCountResult = $deleteOrderID > 0 ? mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE orderID=" . $deleteOrderID) : false;
     $taskCountRow = $taskCountResult ? mysqli_fetch_assoc($taskCountResult) : array('total' => 0);
-    if ($deleteError === '' && (int)$taskCountRow['total'] > 1) {
-        $deleteError = 'This order cannot be deleted because it has more than one assigned task.';
-    }
     $adminResult = mysqli_query($conn, "SELECT id,username,pass,passHash,adminEmail FROM admin WHERE id=" . (int)($_SESSION['adminID'] ?? 0) . " LIMIT 1");
     $adminRow = $adminResult ? mysqli_fetch_assoc($adminResult) : false;
     if ($deleteError === '' && (!$adminRow || !adminVerifyAndMigratePassword($conn, $adminRow, $deletePassword))) {
@@ -535,14 +532,13 @@ if(isset($_GET['action']) && $_GET['action'] == "view"){
 <div class="panel-actions">
 <a href="<?=$siteUrl;?>orders.php?action=edit&id=<?=$id?>"><b>Edit</b></a> |
 <?php $orderTaskCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM tasks WHERE orderID=" . (int)$id); $orderTaskCountRow = $orderTaskCountResult ? mysqli_fetch_assoc($orderTaskCountResult) : array('total'=>0); $orderTaskCount = (int)$orderTaskCountRow['total']; ?>
-<?php if ($orderTaskCount > 1): ?><span style="margin:0 6px;color:#999" title="Orders with more than one task cannot be deleted">Delete unavailable</span><?php else: ?><a style="margin:0 6px;color:#a94442" title="Delete this order" aria-label="Delete this order" href="#deleteOrderModal" data-toggle="modal">Delete</a><?php endif; ?> |
+<a style="margin:0 6px;color:#a94442" title="Delete this order (admin password required)" aria-label="Delete this order (admin password required)" href="#deleteOrderModal" data-toggle="modal">Delete</a> |
 <a href="<?=$siteUrl;?>orders.php"><b>Back</b></a>
 </div>
 <h2 class="panel-title">View Orders - <?=statusNm($statusID)?></h2>
 </header>
 <div class="panel-body viewFrm">
 <?php if (!empty($_GET['deleteError'])): ?><div class="alert alert-danger"><?=htmlspecialchars((string)$_GET['deleteError'], ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
-<?php if ($orderTaskCount > 1): ?><div class="alert alert-warning">This order has <?=$orderTaskCount?> assigned tasks and cannot be deleted. Reduce it to one task or fewer before trying again.</div><?php endif; ?>
 <form class="form-horizontal form-bordered" method="post" enctype="multipart/form-data">
 <?php if ($dhlAlertVisible): ?>
 <div class="alert alert-warning" style="margin-bottom:20px;">
@@ -755,7 +751,7 @@ div#result {
 
 
 </div>
-<div class="form-group">
+<div class="form-group order-documents-group">
 <label class="col-md-2 control-label" for="inputHelpText">Order Image</label>
 <div class="col-md-9">
 <table class="table table-bordered table-striped table-condensed mb-none">
@@ -869,7 +865,7 @@ echo '<tr>
 
 
 
-<div class="form-group">
+<div class="form-group order-documents-group">
 <label class="col-md-2 control-label" for="inputHelpText">Shipping Docs</label>
 <div class="col-md-9">
 <table class="table table-bordered table-striped table-condensed mb-none">
@@ -951,13 +947,11 @@ if (in_array(3, $settlementAry, true)) $settlementLabels[] = 'Licensed';
 </div>
 </div>
 </div>
-<?php if ($orderTaskCount <= 1): ?>
 <div class="modal fade" id="deleteOrderModal" tabindex="-1" role="dialog" aria-labelledby="deleteOrderModalLabel"><div class="modal-dialog" role="document"><div class="modal-content">
 <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button><h4 class="modal-title" id="deleteOrderModalLabel">Approve order deletion</h4></div>
 <div class="modal-body"><div class="alert alert-danger">This permanently deletes the order and its related notes, <?=$orderTaskCount?> task<?=($orderTaskCount===1?'':'s')?>, and files.</div><div class="form-group"><label for="adminPassword">Admin password</label><input type="password" class="form-control" id="adminPassword" name="adminPassword" autocomplete="current-password" required></div></div>
 <div class="modal-footer"><input type="hidden" name="orderID" value="<?=(int)$id?>"><input type="hidden" name="order_delete_csrf" value="<?=htmlspecialchars((string)$_SESSION['order_delete_csrf'], ENT_QUOTES, 'UTF-8')?>"><button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button><button type="submit" name="deleteOrder" value="1" class="btn btn-danger">Approve and delete</button></div>
 </div></div></div>
-<?php endif; ?>
 <div class="form-group">
 <label class="col-md-2 control-label" for="inputDefault">Created Date</label>
 <div class="col-md-9"><?=viewDtTm($createdDate)?></div>
@@ -1322,7 +1316,7 @@ while($rowsStus = mysqli_fetch_assoc($sqlStus)){
 <input type="text" class="form-control" name="paymentTerms" value="<?=$paymentTerms?>" id="inputDefault" >
 </div>
 </div>
-<div class="form-group">
+<div class="form-group order-documents-group">
 <label class="col-md-2 control-label" for="inputHelpText">Order Image</label>
 <div class="col-md-9">
 <table class="table table-bordered table-striped table-condensed mb-none">
@@ -1342,7 +1336,7 @@ if ($action == 'update') {
     echo '<tr>
     <td>&nbsp; '.$sno.'</td>
     <td><a href="'.$siteUrlMain."img/" . $orderImg.'" target="_blank" >'.(($orderImgNm)?$orderImgNm:$orderImg).'</a></td>
-    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$orderImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
+    <td><span class="order-file-actions"><a class="order-file-delete" title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$orderImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</span></td>
     </tr>';
     }
     $sqlImg = mysqli_query($conn,"SELECT * FROM order_images WHERE isOrder='1' AND orderID='" . $id . "'");
@@ -1354,7 +1348,7 @@ if ($action == 'update') {
             echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td><a href="'.$siteUrlMain."img/" . $rowImg['orderImg'].'" target="_blank" >'.(($rowImg['fileName'])?$rowImg['fileName']:$rowImg['orderImg']).'</a></td>
-<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
+<td><span class="order-file-actions"><a class="order-file-delete" title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</span></td>
 </tr>';
         }
     }
@@ -1441,7 +1435,7 @@ echo ($shipmentPlanDate!="")?viewDateFormat($shipmentPlanDate):'';
 <input type="text" class="form-control" name="shippingDocInfo" value="<?=$shippingDocInfo?>" id="inputDefault" >
 </div>
 </div>
-<div class="form-group">
+<div class="form-group order-documents-group">
 <label class="col-md-2 control-label" for="inputHelpText">Shipping Docs</label>
 <div class="col-md-9">
 <table class="table table-bordered table-striped table-condensed mb-none">
@@ -1461,7 +1455,7 @@ if ($action == 'update') {
     echo '<tr>
     <td>&nbsp; '.$sno.'</td>
     <td><a href="'.$siteUrlMain."img/" . $shippingDocImg.'" target="_blank" >'.(($shippingDocImgNm)?$shippingDocImgNm:$shippingDocImg).'</a></td>
-    <td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$shippingDocImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
+    <td><span class="order-file-actions"><a class="order-file-delete" title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete2&imgID='.$shippingDocImg.'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</span></td>
     </tr>';
     }
     $sqlImg2 = mysqli_query($conn,"SELECT * FROM order_images WHERE isOrder='0' AND orderID='" . $id . "'");
@@ -1473,7 +1467,7 @@ if ($action == 'update') {
             echo '<tr>
 <td>&nbsp; '.$sno.'</td>
 <td><a href="'.$siteUrlMain."img/" . $rowImg2['orderImg'].'" target="_blank" >'.(($rowImg2['fileName'])?$rowImg2['fileName']:$rowImg2['orderImg']).'</a></td>
-<td><a title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg2['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</td>
+<td><span class="order-file-actions"><a class="order-file-delete" title="Delete this image" onclick="return confirm(\'Are you sure you want to delete?\');" href="orders.php?action=edit&id='.$id.'&act=imgDelete&imgID='.$rowImg2['id'].'"><i class="fa fa-times delIcon"></i> Delete</a> '.$copyFileUrlButton.'</span></td>
 </tr>';
         }
     }

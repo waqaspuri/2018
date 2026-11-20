@@ -1,6 +1,16 @@
 <?php
 include "include/sessionAdmin.php";  
 include "include/configure.php";
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'clear_all_logs') {
+    $logCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM sms_log");
+    $logCountRow = $logCountResult ? mysqli_fetch_assoc($logCountResult) : array('total' => 0);
+    $clearedLogs = (int)($logCountRow['total'] ?? 0);
+    mysqli_query($conn, "DELETE FROM sms_log");
+    header('Location: sms_log.php?cleared=' . $clearedLogs);
+    exit;
+}
+
 include "include/header.php"; 
 
 $logLimit = max(1, min(500, (int)($_GET['limit'] ?? 50)));
@@ -31,6 +41,15 @@ $whatsAppLogs = $whatsAppResult ? mysqli_fetch_all($whatsAppResult, MYSQLI_ASSOC
 <section class="panel">
   <header class="panel-heading"><h2 class="panel-title">Communication Dispatch Log</h2></header>
   <div class="panel-body">
+    <?php if (isset($_GET['cleared'])): ?>
+      <div class="alert alert-success"><?=max(0, (int)$_GET['cleared']);?> communication log record(s) cleared.</div>
+    <?php endif; ?>
+    <div class="clearfix" style="margin-bottom:15px">
+      <form method="post" class="pull-right" onsubmit="return confirm('Clear all Email, SMS, and WhatsApp logs? This cannot be undone.');">
+        <input type="hidden" name="action" value="clear_all_logs">
+        <button type="submit" class="btn btn-danger">Clear All Logs</button>
+      </form>
+    </div>
     <ul class="nav nav-tabs" role="tablist" style="margin-bottom:15px">
       <li class="active"><a href="#emailLogs" role="tab" data-toggle="tab">Email <span class="badge"><?=count($emailLogs);?></span></a></li>
       <li><a href="#smsLogs" role="tab" data-toggle="tab">SMS <span class="badge"><?=count($smsLogs);?></span></a></li>

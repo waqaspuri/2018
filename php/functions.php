@@ -617,6 +617,8 @@ function insertSMSLog($client, $data, $response, $date)
 
   global $conn;
   try {
+    require_once __DIR__ . '/task_schedule.php';
+    $date = taskScheduleNow($conn)->format('l, d-m-y h:i:s a');
     $stmt = mysqli_prepare($conn, "INSERT INTO sms_log (client,api_data,api_response,time_stamp) VALUES (?,?,?,?)");
     if (!$stmt) {
       return mysqli_error($conn);
